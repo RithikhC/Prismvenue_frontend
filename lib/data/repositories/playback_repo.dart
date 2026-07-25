@@ -1,0 +1,59 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../mock/mock_playback_repo.dart';
+import '../models/playback_state.dart';
+import '../models/takeover_state.dart';
+
+/// Now-playing boundary — §5: PlaybackRepo streams now-playing/noise so the
+/// eventual FastAPI + MQTT backend slots in behind the same interface.
+abstract class PlaybackRepo {
+  /// Emits the current state immediately, then every change.
+  Stream<PlaybackState> watchNowPlaying();
+
+  /// Noise % (0–100). Mock ticks so the app looks alive (§5).
+  Stream<int> watchNoise();
+
+  /// S01-3 confirm → switch the vibe.
+  Future<void> setMood(String moodId);
+
+  /// S01-2: staff paused the room.
+  Future<void> pause({required String by});
+
+  Future<void> resume();
+
+  // ---- Takeover (§2 S02) ----
+
+  /// Emits the current takeover state immediately, then every second while
+  /// active (the countdown ticks here so UI and auto-return share one clock).
+  Stream<TakeoverState> watchTakeover();
+
+  /// S02-1 CTA: hand the speakers to staff audio; Prism returns
+  /// automatically after [handBackAfter].
+  Future<void> startTakeover({required Duration handBackAfter});
+
+  /// S02-4: extend ADDS the chosen duration (§6-A7).
+  Future<void> extendTakeover(Duration by);
+
+  /// S02-3 confirm (or countdown reaching zero): Prism takes the room back.
+  Future<void> endTakeover();
+}
+
+final playbackRepoProvider = Provider<PlaybackRepo>((ref) {
+  final repo = MockPlaybackRepo();
+  ref.onDispose(repo.dispose);
+  return repo;
+});
+
+/// §5 State: nowPlayingProvider (Stream, mock ticks).
+final nowPlayingProvider = StreamProvider.autoDispose<PlaybackState>(
+    (ref) => ref.watch(playbackRepoProvider).watchNowPlaying());
+
+final noiseProvider = StreamProvider.autoDispose<int>(
+    (ref) => ref.watch(playbackRepoProvider).watchNoise());
+
+final takeoverStateProvider = StreamProvider.autoDispose<TakeoverState>(
+    (ref) => ref.watch(playbackRepoProvider).watchTakeover());
+
+/// §5 State: takeoverCountdownProvider — the ticking remaining time.
+final takeoverCountdownProvider = Provider.autoDispose<Duration>((ref) =>
+    ref.watch(takeoverStateProvider).value?.remaining ?? Duration.zero);

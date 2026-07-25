@@ -1,0 +1,115 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:prism_venues/data/mock/mock_playback_repo.dart';
+import 'package:prism_venues/data/repositories/playback_repo.dart';
+import 'package:prism_venues/main.dart';
+
+/// §2 S04 Venues: owner triage portfolio, quick-fix, drill-in, and the
+/// add-venue → add-zone flow.
+void main() {
+  Future<void> pumpPortfolio(WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(1024, 768));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final container = ProviderContainer(overrides: [
+      playbackRepoProvider.overrideWith((ref) {
+        final repo = MockPlaybackRepo(tickNoise: false);
+        ref.onDispose(repo.dispose);
+        return repo;
+      }),
+    ]);
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const PrismVenuesApp(),
+      ),
+    );
+    await _settle(tester);
+    await tester.enterText(
+        find.byType(TextField).first, 'owner@marinacafe.com');
+    await tester.tap(find.text('Sign in'));
+    await _settle(tester);
+  }
+
+  testWidgets('S04-2 portfolio: needs-attention order, shouting problems, '
+      'quiet healthy rows', (tester) async {
+    await pumpPortfolio(tester);
+
+    expect(find.text('Needs attention'), findsOneWidget);
+    expect(find.text('+ Venue'), findsOneWidget);
+    expect(find.text('Dockside'), findsOneWidget);
+    expect(find.text('Marina Café'), findsOneWidget);
+    expect(find.text('Harbor House'), findsOneWidget);
+
+    // Problems shout: offline (red) and off-schedule (amber + quick-fix).
+    expect(find.textContaining('Offline'), findsOneWidget);
+    expect(find.textContaining('Off schedule'), findsOneWidget);
+    expect(find.text('Return to Auto'), findsOneWidget);
+    // Healthy rows whisper — the S04-2 example sub, no % values anywhere.
+    expect(find.text('1 zone · Peak'), findsOneWidget);
+    expect(find.textContaining('%'), findsNothing);
+  });
+
+  testWidgets('S04-2 quick-fix: Return to Auto quiets the row',
+      (tester) async {
+    await pumpPortfolio(tester);
+
+    await tester.tap(find.text('Return to Auto'));
+    await _settle(tester);
+    expect(find.text('Return to Auto'), findsNothing);
+    expect(find.textContaining('Off schedule'), findsNothing);
+    expect(find.text('2 zones · Afternoon lift'), findsOneWidget);
+  });
+
+  testWidgets('S04-1 drill-in: venue header + zone rows with statuses',
+      (tester) async {
+    await pumpPortfolio(tester);
+
+    await tester.tap(find.text('Marina Café'));
+    await _settle(tester);
+    expect(find.text('Main floor'), findsOneWidget);
+    expect(find.text('Terrace'), findsOneWidget);
+    expect(find.text('Auto · Afternoon lift'), findsOneWidget);
+    expect(find.text('Off schedule · auto in 42 min'), findsOneWidget);
+
+    // Quick-fix works here too.
+    await tester.tap(find.text('Return to Auto'));
+    await _settle(tester);
+    expect(find.text('Auto · Evening warmth'), findsOneWidget);
+  });
+
+  testWidgets('S04-3/4: add venue with a zone from the sheet',
+      (tester) async {
+    await pumpPortfolio(tester);
+
+    await tester.tap(find.text('+ Venue'));
+    await _settle(tester);
+    expect(find.text('Add a venue'), findsOneWidget);
+    expect(find.text('Every day · 7am–11pm'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).first, 'Sunset Rooftop');
+    await tester.tap(find.text('+ Add zone'));
+    await _settle(tester);
+    expect(find.text('Add a zone'), findsOneWidget);
+    expect(find.textContaining('one area with its own speakers'),
+        findsOneWidget);
+
+    // Field is prefilled "Back patio" per the frame; confirm.
+    await tester.tap(find.text('Add zone'));
+    await _settle(tester);
+    expect(find.text('Back patio'), findsOneWidget); // zone chip
+
+    await tester.tap(find.text('Add venue'));
+    await _settle(tester);
+    expect(find.text('Sunset Rooftop'), findsOneWidget);
+    expect(find.text('1 zone · Daytime flow'), findsOneWidget);
+  });
+}
+
+/// Bounded settle — chrome may host looping animations.
+Future<void> _settle(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 250));
+  await tester.pump(const Duration(milliseconds: 250));
+}
