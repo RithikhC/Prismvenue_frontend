@@ -20,20 +20,28 @@ class MockScheduleRepo implements ScheduleRepo {
     ],
   );
 
+  /// (startHour, endHour, moodId) — the same blocks as before, now as real
+  /// hours. Their derived labels are identical to the strings this used to
+  /// hold: "7 – 11 am", "11 am – 2 pm", "2 – 6 pm", "6 – 9 pm", "9 – 11 pm".
   static const _dayTemplate = [
-    ('7 – 11 am', 'morning-calm'),
-    ('11 am – 2 pm', 'daytime-flow'),
-    ('2 – 6 pm', 'afternoon-lift'),
-    ('6 – 9 pm', 'evening-warmth'),
-    ('9 – 11 pm', 'peak'),
+    (7, 11, 'morning-calm'),
+    (11, 14, 'daytime-flow'),
+    (14, 18, 'afternoon-lift'),
+    (18, 21, 'evening-warmth'),
+    (21, 23, 'peak'),
   ];
 
   var _mode = ScheduleMode.selfDrive; // S03-1 is the entry frame
   late final List<Daypart> _plan = [
     for (var day = 0; day < 7; day++)
-      for (final (i, (range, moodId)) in _dayTemplate.indexed)
+      for (final (i, (start, end, moodId)) in _dayTemplate.indexed)
         Daypart(
-            id: 'd$day-$i', dayIndex: day, rangeLabel: range, moodId: moodId),
+          id: 'd$day-$i',
+          dayIndex: day,
+          startHour: start,
+          endHour: end,
+          moodId: moodId,
+        ),
   ];
   var _nextId = 0;
 
@@ -72,7 +80,8 @@ class MockScheduleRepo implements ScheduleRepo {
     _plan.add(Daypart(
       id: 'new-${_nextId++}',
       dayIndex: daypart.dayIndex,
-      rangeLabel: daypart.rangeLabel,
+      startHour: daypart.startHour,
+      endHour: daypart.endHour,
       moodId: daypart.moodId,
     ));
     _emitPlan();

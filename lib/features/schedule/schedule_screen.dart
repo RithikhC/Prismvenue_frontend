@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/session.dart';
-import '../../data/mock/seed.dart';
+import '../../app/venue_header.dart';
 import '../../data/models/schedule_entry.dart';
 import '../../data/repositories/schedule_repo.dart';
 import '../../shared/widgets/pressable.dart';
@@ -47,6 +47,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(sessionProvider);
+    final header = ref.watch(venueHeaderProvider);
     if (user == null) return const SizedBox.shrink(); // router redirects
     final mode =
         ref.watch(scheduleModeProvider).value ?? ScheduleMode.selfDrive;
@@ -55,9 +56,9 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
       body: Column(
         children: [
           PrismTopBar(
-            title: Seed.venueName,
-            subtitle: Seed.venueStatus,
-            statusDot: true,
+            title: header.title,
+            subtitle: header.subtitle,
+            statusDot: header.statusDot,
             user: user,
           ),
           Expanded(

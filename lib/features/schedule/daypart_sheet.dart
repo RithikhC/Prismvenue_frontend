@@ -5,8 +5,8 @@ import '../../data/models/schedule_entry.dart';
 import '../../data/repositories/schedule_repo.dart';
 import '../../shared/widgets/day_chips.dart';
 import '../../shared/widgets/prism_bottom_sheet.dart';
-import '../../shared/widgets/prism_field.dart';
 import '../../shared/widgets/prism_top_bar.dart';
+import '../settings/widgets/time_field.dart';
 import '../../theme/moods.dart';
 import '../../theme/palette.dart';
 import '../../theme/typography.dart';
@@ -61,16 +61,12 @@ class _DaypartSheetState extends State<_DaypartSheet> {
   late int _day = widget.existing?.dayIndex ?? 0;
   late String _moodId = widget.existing?.moodId ?? moods.first.id;
 
-  // §6-B3-adjacent: how times are edited isn't designed (the §4 edge list
-  // has no set-time modal for schedule) — display-only fields for now.
-  late final _range =
-      TextEditingController(text: widget.existing?.rangeLabel ?? '6 – 9 pm');
-
-  @override
-  void dispose() {
-    _range.dispose();
-    super.dispose();
-  }
+  // `open_questions.md` #18 flagged that no time picker was designed and the
+  // field was free text. It reuses the S05-12 hour dial the open-hours flow
+  // already uses, so no new visual language is introduced — and the backend
+  // gets real times, without which it cannot compute what plays when.
+  late int _start = widget.existing?.startHour ?? 18;
+  late int _end = widget.existing?.endHour ?? 21;
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +80,8 @@ class _DaypartSheetState extends State<_DaypartSheet> {
       onPrimary: () => Navigator.of(context).pop(_Save(Daypart(
         id: widget.existing?.id ?? '',
         dayIndex: _day,
-        rangeLabel: _range.text,
+        startHour: _start,
+        endHour: _end,
         moodId: _moodId,
       ))),
       onCancel: () => Navigator.of(context).pop(),
@@ -96,7 +93,34 @@ class _DaypartSheetState extends State<_DaypartSheet> {
           onToggle: (i) => setState(() => _day = i),
         ),
         const SizedBox(height: 14),
-        PrismField(label: 'Time', controller: _range),
+        Text('Time',
+            style: PrismType.label.copyWith(color: palette.textSecondary)),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TimeField(
+                label: 'Starts',
+                hour: _start,
+                dialTitle: 'Start time',
+                onChanged: (h) => setState(() => _start = h),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TimeField(
+                label: 'Ends',
+                hour: _end,
+                dialTitle: 'End time',
+                onChanged: (h) => setState(() => _end = h),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 7),
+        Text('Tap a time to set it on the dial.',
+            style:
+                PrismType.microHelper.copyWith(color: palette.textSecondary)),
         const SizedBox(height: 14),
         Text('Mood',
             style: PrismType.label.copyWith(color: palette.textSecondary)),

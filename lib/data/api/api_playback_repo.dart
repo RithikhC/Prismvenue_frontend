@@ -1,0 +1,297 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import '../models/playback_state.dart';
+import '../models/takeover_state.dart';
+import '../repositories/playback_repo.dart';
+import 'api_client.dart';
+import 'api_scope.dart';
+import 'token_store.dart';
+import 'watchable.dart';
+
+/// `PlaybackRepo` against the real API — the realtime one.
+///
+/// Two things here are not simple request/response:
+///
+/// **The takeover countdown ticks locally.** The server sends `started_at` and
+/// a remaining figure once; this repository counts down every second between
+/// server events. `BACKEND_INTEGRATION.md` is explicit that the server must not
+/// push a message per second, and `takeoverCountdownProvider` renders `m:ss`
+/// off this stream. When it reaches zero the app calls `endTakeover()` itself —
+/// which is why the endpoint is idempotent, since a manager can tap "Return to
+/// Prism" at the same moment.
+///
+/// **State arrives over SSE.** `/zones/{id}/events` carries now-playing, noise
+/// and takeover for one zone. The plain GETs still provide the immediate value
+/// on subscribe; the stream supplies changes after that, including ones made by
+/// another manager on another iPad. If the stream drops, the repository falls
+/// back to polling rather than going silent — a Floor screen that quietly stops
+/// updating is worse than one that updates slowly.
+class ApiPlaybackRepo implements PlaybackRepo {
+  ApiPlaybackRepo(this._client, this._scope, this._tokens, {http.Client? sseClient})
+      : _sse = sseClient ?? http.Client();
+
+  final ApiClient _client;
+  final ApiScope _scope;
+  final TokenStore _tokens;
+  final http.Client _sse;
+
+  late final _now = Watchable<PlaybackState>(_fetchNow, scopeKey: _scope.zoneId);
+  late final _noise = Watchable<int>(_fetchNoise, scopeKey: _scope.zoneId);
+  late final _takeover =
+      Watchable<TakeoverState>(_fetchTakeover, scopeKey: _scope.zoneId);
+
+  StreamSubscription<String>? _events;
+  Timer? _countdown;
+  Timer? _pollFallback;
+  int _listeners = 0;
+  TakeoverState _lastTakeover = TakeoverState.inactive;
+
+  // --- Now playing / noise ---------------------------------------------------
+
+  @override
+  Stream<PlaybackState> watchNowPlaying() => _tracked(_now.watch());
+
+  @override
+  Stream<int> watchNoise() => _tracked(_noise.watch());
+
+  @override
+  Stream<TakeoverState> watchTakeover() => _tracked(_takeover.watch());
+
+  /// Starts the event stream while anything is listening and stops it when
+  /// nothing is. The providers are `autoDispose`, so leaving the Floor screen
+  /// should not leave a connection open.
+  Stream<T> _tracked<T>(Stream<T> source) {
+    late StreamController<T> controller;
+    StreamSubscription<T>? sub;
+
+    controller = StreamController<T>(
+      onListen: () {
+        _listeners++;
+        _ensureStreaming();
+        sub = source.listen(
+          controller.add,
+          onError: controller.addError,
+          onDone: controller.close,
+        );
+      },
+      onCancel: () async {
+        await sub?.cancel();
+        _listeners--;
+        if (_listeners <= 0) _stopStreaming();
+      },
+    );
+    return controller.stream;
+  }
+
+  @override
+  Future<void> setMood(String moodId) async {
+    await _client.post('/zones/${_scope.requireZone()}/mood',
+        body: {'mood_id': moodId});
+    await _now.refresh();
+  }
+
+  @override
+  Future<void> pause({required String by}) async {
+    await _client.post('/zones/${_scope.requireZone()}/pause', body: {'by': by});
+    await _now.refresh();
+  }
+
+  @override
+  Future<void> resume() async {
+    await _client.post('/zones/${_scope.requireZone()}/resume');
+    await _now.refresh();
+  }
+
+  // --- Takeover --------------------------------------------------------------
+
+  @override
+  Future<void> startTakeover({required Duration handBackAfter}) async {
+    await _client.post(
+      '/zones/${_scope.requireZone()}/takeover',
+      body: {'hand_back_after_minutes': handBackAfter.inMinutes},
+    );
+    await _takeover.refresh();
+    await _now.refresh();
+  }
+
+  @override
+  Future<void> extendTakeover(Duration by) async {
+    // ADDS to the remaining time rather than replacing it (§6-A7), which the
+    // server also enforces — extend_sheet.dart assumes it on both sides.
+    await _client.post(
+      '/zones/${_scope.requireZone()}/takeover/extend',
+      body: {'additional_minutes': by.inMinutes},
+    );
+    await _takeover.refresh();
+  }
+
+  @override
+  Future<void> endTakeover() async {
+    await _client.post('/zones/${_scope.requireZone()}/takeover/end');
+    await _takeover.refresh();
+    await _now.refresh();
+  }
+
+  // --- The local clock -------------------------------------------------------
+
+  void _startCountdown() {
+    _countdown?.cancel();
+    _countdown = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!_lastTakeover.active) return;
+      final next = _lastTakeover.remaining - const Duration(seconds: 1);
+      if (next <= Duration.zero) {
+        _countdown?.cancel();
+        _countdown = null;
+        // The app hands the room back itself. The server treats this as
+        // idempotent, so racing its own auto-return is harmless.
+        unawaited(endTakeover().catchError((_) {}));
+      } else {
+        _lastTakeover = _lastTakeover.copyWith(remaining: next);
+        _takeover.emit(_lastTakeover);
+      }
+    });
+  }
+
+  // --- Realtime --------------------------------------------------------------
+
+  void _ensureStreaming() {
+    if (_events != null || _pollFallback != null) return;
+    unawaited(_connect());
+  }
+
+  void _stopStreaming() {
+    _events?.cancel();
+    _events = null;
+    _countdown?.cancel();
+    _countdown = null;
+    _pollFallback?.cancel();
+    _pollFallback = null;
+  }
+
+  Future<void> _connect() async {
+    final zoneId = _scope.zoneId();
+    final token = await _tokens.readAccessToken();
+    if (zoneId == null || token == null) return _startPolling();
+
+    try {
+      // EventSource cannot set headers, so the token travels as a query
+      // parameter. Same origin, same TLS connection as every other request.
+      final request = http.Request(
+        'GET',
+        Uri.parse('${_client.baseUrl}/zones/$zoneId/events'
+            '?access_token=$token'),
+      )..headers['Accept'] = 'text/event-stream';
+
+      final response = await _sse.send(request);
+      if (response.statusCode != 200) return _startPolling();
+
+      _events = response.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .listen(
+            _onEventLine,
+            onError: (_) => _startPolling(),
+            onDone: _startPolling,
+            cancelOnError: true,
+          );
+    } catch (_) {
+      _startPolling();
+    }
+  }
+
+  void _onEventLine(String line) {
+    if (!line.startsWith('data: ')) return;
+    try {
+      final payload = jsonDecode(line.substring(6)) as Map<String, dynamic>;
+
+      if (payload['now'] case final Map now) {
+        _now.emit(_playbackFrom(now.cast<String, dynamic>()));
+      }
+      if (payload['noise'] case final int noise) {
+        _noise.emit(noise);
+      }
+      if (payload['takeover'] case final Map takeover) {
+        _lastTakeover = _takeoverFrom(takeover.cast<String, dynamic>());
+        _takeover.emit(_lastTakeover);
+        if (_lastTakeover.active) {
+          _startCountdown();
+        } else {
+          _countdown?.cancel();
+          _countdown = null;
+        }
+      }
+    } catch (_) {
+      // A malformed frame is not worth tearing the connection down for.
+    }
+  }
+
+  /// Fallback when SSE is unavailable — a proxy that buffers it, an older
+  /// deployment, a dropped connection. Slower, but never silent.
+  void _startPolling() {
+    _events?.cancel();
+    _events = null;
+    _pollFallback ??= Timer.periodic(const Duration(seconds: 5), (_) async {
+      if (_listeners <= 0) return;
+      try {
+        await _now.refresh();
+        await _noise.refresh();
+        await _takeover.refresh();
+      } catch (_) {
+        // Keep polling; a transient failure is not a reason to stop.
+      }
+    });
+  }
+
+  // --- Fetching / mapping ----------------------------------------------------
+
+  Future<PlaybackState> _fetchNow() async {
+    final json = await _client.get('/zones/${_scope.requireZone()}/now')
+        as Map<String, dynamic>;
+    return _playbackFrom(json);
+  }
+
+  Future<int> _fetchNoise() async {
+    final json = await _client.get('/zones/${_scope.requireZone()}/noise')
+        as Map<String, dynamic>;
+    return json['noise_pct'] as int? ?? 0;
+  }
+
+  Future<TakeoverState> _fetchTakeover() async {
+    final json = await _client.get('/zones/${_scope.requireZone()}/takeover')
+        as Map<String, dynamic>;
+    final state = _takeoverFrom(json);
+    _lastTakeover = state;
+    if (state.active) _startCountdown();
+    return state;
+  }
+
+  static PlaybackState _playbackFrom(Map<String, dynamic> json) => PlaybackState(
+        // moodById() throws on an unknown id, so a missing mood must resolve to
+        // a real one rather than reaching the widget tree.
+        moodId: (json['mood_id'] as String?) ?? 'daytime-flow',
+        paused: json['paused'] as bool? ?? false,
+        pausedBy: json['paused_by'] as String?,
+        contextLine: json['context_line'] as String? ?? '',
+      );
+
+  static TakeoverState _takeoverFrom(Map<String, dynamic> json) {
+    if (json['active'] != true) return TakeoverState.inactive;
+    final startedAt = json['started_at'] as String?;
+    return TakeoverState(
+      active: true,
+      startedAt: startedAt == null ? null : DateTime.tryParse(startedAt),
+      remaining: Duration(seconds: json['remaining_seconds'] as int? ?? 0),
+    );
+  }
+
+  void dispose() {
+    _stopStreaming();
+    _sse.close();
+    _now.dispose();
+    _noise.dispose();
+    _takeover.dispose();
+  }
+}

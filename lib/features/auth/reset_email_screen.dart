@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../data/repositories/auth_repo.dart';
+import '../../shared/widgets/error_note.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../../shared/widgets/prism_field.dart';
 import '../../theme/palette.dart';
@@ -20,6 +21,23 @@ class ResetEmailNotifier extends Notifier<String> {
   String build() => 'priya@marinacafe.com';
 
   void set(String email) => state = email;
+}
+
+/// Proof that the emailed code was verified, carried from S00-3 to S00-4.
+///
+/// The reset cannot complete without it: `saveNewPassword` requires it, and
+/// the server refuses without it. As originally specified, save-password took
+/// only `{email, password}`, which let anyone set anyone's password —
+/// INTEGRATION_PLAN.md §5.1. Held in memory only, for one flow, deliberately
+/// never persisted.
+final resetTokenProvider =
+    NotifierProvider<ResetTokenNotifier, String?>(ResetTokenNotifier.new);
+
+class ResetTokenNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String? token) => state = token;
 }
 
 /// S00-2 "Forgot password — email a verification code".
@@ -40,11 +58,21 @@ class _ResetEmailScreenState extends ConsumerState<ResetEmailScreen> {
     super.dispose();
   }
 
+  String? _error;
+
   Future<void> _send() async {
     final email = _email.text.trim();
     ref.read(resetEmailProvider.notifier).set(email);
-    await ref.read(authRepoProvider).sendResetCode(email);
+    setState(() => _error = null);
+    try {
+      await ref.read(authRepoProvider).sendResetCode(email);
+    } catch (e) {
+      if (mounted) setState(() => _error = messageFor(e));
+      return;
+    }
     if (!mounted) return;
+    // Always advances on success, even for an unknown address — the server
+    // deliberately does not reveal whether the account exists.
     context.go('/reset/code');
   }
 
@@ -64,6 +92,7 @@ class _ResetEmailScreenState extends ConsumerState<ResetEmailScreen> {
           focusedOverride: true,
           leading: const Icon(LucideIcons.mail),
         ),
+        ErrorNote(message: _error),
         const SizedBox(height: 22),
         PrimaryButton(
             label: 'Send verification code',

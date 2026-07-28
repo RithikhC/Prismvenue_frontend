@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/session.dart';
-import '../../data/mock/seed.dart';
+import '../../app/venue_header.dart';
 import '../../data/models/guardrails.dart';
 import '../../data/repositories/settings_repo.dart';
 import '../../shared/widgets/prism_top_bar.dart';
@@ -34,7 +34,7 @@ class OpenHoursScreen extends ConsumerWidget {
           // §2.0: venue name stays in the title slot; "Open hours" is the
           // pinned context-line example.
           PrismTopBar(
-            title: Seed.venueName,
+            title: ref.watch(venueNameProvider),
             subtitle: 'Open hours',
             showBack: true,
             onBack: () => context.go('/settings'),

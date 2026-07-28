@@ -8,7 +8,6 @@ import '../features/auth/reset_email_screen.dart';
 import '../features/auth/reset_password_screen.dart';
 import '../features/auth/sign_in_screen.dart';
 import '../features/floor/floor_screen.dart';
-import '../data/mock/seed.dart';
 import '../data/models/guardrails.dart';
 import '../data/repositories/settings_repo.dart';
 import '../features/schedule/schedule_screen.dart';
@@ -174,8 +173,12 @@ class _VenuesSwitch extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final role = ref.watch(sessionProvider)?.role;
-    return role == Role.owner
-        ? const PortfolioScreen()
-        : const VenueScreen(venueId: Seed.managerVenueId);
+    if (role == Role.owner) return const PortfolioScreen();
+
+    // The manager's venue comes from their session, not from a mock constant.
+    // Null only before sign-in, when the router has already redirected away.
+    final venueId = ref.watch(currentVenueIdProvider);
+    if (venueId == null) return const SizedBox.shrink();
+    return VenueScreen(venueId: venueId);
   }
 }

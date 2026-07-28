@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/session.dart';
-import '../../data/mock/seed.dart';
+import '../../app/venue_header.dart';
 import '../../data/models/zone.dart';
 import '../../data/repositories/venue_repo.dart';
 import '../../shared/widgets/prism_top_bar.dart';
@@ -43,7 +43,7 @@ class VenueScreen extends ConsumerWidget {
     // Empty-zones case (last zone removed via S05-5) is undesigned — derived.
     final firstZone = venue?.zones.firstOrNull;
     final subtitle = venue == null
-        ? Seed.venueStatus
+        ? ref.watch(venueHeaderProvider).subtitle
         : offlineZone != null
             ? '${offlineZone.name} · offline'
             : firstZone != null
@@ -54,7 +54,7 @@ class VenueScreen extends ConsumerWidget {
       body: Column(
         children: [
           PrismTopBar(
-            title: venue?.name ?? Seed.venueName,
+            title: venue?.name ?? ref.watch(venueNameProvider),
             subtitle: subtitle,
             statusDot: offlineZone == null && firstZone != null,
             showBack: drillIn,

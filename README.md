@@ -14,13 +14,18 @@ data. `flutter analyze` is clean and the 32 widget tests pass.
 | | |
 |---|---|
 | Screens | All six sections — auth, floor, takeover, schedule, venues, settings |
-| State | Riverpod; five stream-based repository interfaces behind mock implementations |
-| Backend | Not wired — see the integration guide below |
+| State | Riverpod; five stream-based repository interfaces |
+| Backend | **Wired.** All five repositories run against the API in `../prismvenue-backend`. Mocks are still in the tree and still back the test suite. |
 
 ## Start here
 
-- **[BACKEND_INTEGRATION.md](BACKEND_INTEGRATION.md)** — how to replace the
-  mocks with a real API. Start here if that's your job.
+- **[RUNNING.md](RUNNING.md)** — run backend + frontend together locally, plus
+  a verification checklist. Start here.
+- **[INTEGRATION_PLAN.md](INTEGRATION_PLAN.md)** — what was mapped, what
+  mismatched, and every decision taken to resolve it.
+- **[BACKEND_INTEGRATION.md](BACKEND_INTEGRATION.md)** — the original guide to
+  replacing the mocks. Still accurate about the architecture; its "Known gaps"
+  section is now largely addressed.
 - **[open_questions.md](open_questions.md)** — 27 places the build had to
   derive something the design didn't pin down. For the designer, but several
   affect backend work.
@@ -30,12 +35,19 @@ data. `flutter analyze` is clean and the 32 widget tests pass.
 
 ## Running
 
+Against the real backend — see [RUNNING.md](RUNNING.md) for the full setup:
+
 ```bash
-flutter pub get
-flutter run
+flutter run -d chrome --web-port=8080 --dart-define=PRISM_API_BASE_URL=http://localhost:8000/v1
 ```
 
-Sign in with any password; the mock derives the role from the email —
+On mocks, with no backend at all:
+
+```bash
+flutter run -d chrome --dart-define=PRISM_USE_MOCKS=true
+```
+
+On mocks, sign in with any password; the role comes from the email —
 `floor@…` → floor staff, `owner@…` → owner, anything else → manager. The
 role changes what you can reach, so try all three.
 
@@ -43,7 +55,7 @@ role changes what you can reach, so try all three.
 themes, for checking design fidelity.
 
 ```bash
-flutter test        # 32 widget tests
+flutter test        # 77 tests — 32 widget + 45 API/transport
 flutter analyze
 ```
 
@@ -56,6 +68,7 @@ lib/
   data/
     models/         plain data classes
     repositories/   abstract interfaces  ← the backend seam
+    api/            HTTP client, token storage, the five API implementations
     mock/           in-memory implementations, seeded with Marina Café
   shared/widgets/   design-system components
   features/         one folder per section

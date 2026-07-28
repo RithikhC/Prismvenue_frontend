@@ -2,7 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'app/env.dart';
 import 'app/router.dart';
+import 'app/session.dart';
+import 'data/api/api_auth_repo.dart';
+import 'data/api/api_playback_repo.dart';
+import 'data/api/api_schedule_repo.dart';
+import 'data/api/api_settings_repo.dart';
+import 'data/api/api_venue_repo.dart';
+import 'data/api/providers.dart';
+import 'data/repositories/auth_repo.dart';
+import 'data/repositories/playback_repo.dart';
+import 'data/repositories/schedule_repo.dart';
+import 'data/repositories/settings_repo.dart';
+import 'data/repositories/venue_repo.dart';
 import 'theme/palette.dart';
 
 /// App theme mode. Dark is the design default (§1.1).
@@ -21,8 +34,81 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
       state = state == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
 }
 
-void main() {
-  runApp(const ProviderScope(child: PrismVenuesApp()));
+/// Swaps the mock repositories for API-backed ones.
+///
+/// This is the single seam `BACKEND_INTEGRATION.md` §2 describes: one override
+/// per interface, nothing else in the app changes. Repositories are migrated
+/// one at a time — anything not listed here is still on its mock, which is why
+/// the list grows increment by increment rather than all at once.
+///
+/// `--dart-define=PRISM_USE_MOCKS=true` returns an empty list, running the app
+/// exactly as it ran before the backend existed. Useful for design review and
+/// for reproducing the widget tests by hand.
+ProviderContainer buildPrismContainer() {
+  if (Env.useMocks) return ProviderContainer();
+  return ProviderContainer(overrides: [
+    authRepoProvider.overrideWith(
+      (ref) => ApiAuthRepo(
+        ref.watch(apiClientProvider),
+        ref.watch(tokenStoreProvider),
+      ),
+    ),
+    settingsRepoProvider.overrideWith((ref) {
+      final repo = ApiSettingsRepo(
+        ref.watch(apiClientProvider),
+        ref.watch(apiScopeProvider),
+      );
+      ref.onDispose(repo.dispose);
+      return repo;
+    }),
+    venueRepoProvider.overrideWith((ref) {
+      final repo = ApiVenueRepo(ref.watch(apiClientProvider));
+      ref.onDispose(repo.dispose);
+      return repo;
+    }),
+    scheduleRepoProvider.overrideWith((ref) {
+      final repo = ApiScheduleRepo(
+        ref.watch(apiClientProvider),
+        ref.watch(apiScopeProvider),
+      );
+      ref.onDispose(repo.dispose);
+      return repo;
+    }),
+    playbackRepoProvider.overrideWith((ref) {
+      final repo = ApiPlaybackRepo(
+        ref.watch(apiClientProvider),
+        ref.watch(apiScopeProvider),
+        ref.watch(tokenStoreProvider),
+      );
+      ref.onDispose(repo.dispose);
+      return repo;
+    }),
+  ]);
+}
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final container = buildPrismContainer();
+
+  // Rehydrate before the first frame so the router sees the final session and
+  // a returning user never sees the sign-in screen flash past.
+  //
+  // Capped, because a slow network must not hold the app hostage: if the check
+  // outlives the cap we start signed out and let it finish in the background —
+  // the router listens to the session, so a late success still lands the user
+  // on their home screen.
+  if (!Env.useMocks) {
+    await container
+        .read(authControllerProvider)
+        .restore()
+        .timeout(const Duration(seconds: 3), onTimeout: () {});
+  }
+
+  runApp(UncontrolledProviderScope(
+    container: container,
+    child: const PrismVenuesApp(),
+  ));
 }
 
 class PrismVenuesApp extends ConsumerWidget {

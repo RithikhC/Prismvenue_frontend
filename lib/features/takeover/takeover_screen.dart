@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/session.dart';
-import '../../data/mock/seed.dart';
+import '../../app/venue_header.dart';
 import '../../data/repositories/playback_repo.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../../shared/widgets/prism_top_bar.dart';
@@ -35,6 +35,7 @@ class _TakeoverScreenState extends ConsumerState<TakeoverScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(sessionProvider);
+    final header = ref.watch(venueHeaderProvider);
     if (user == null) return const SizedBox.shrink(); // router redirects
     final takeover = ref.watch(takeoverStateProvider).value;
     if (takeover != null && takeover.active) {
@@ -48,9 +49,9 @@ class _TakeoverScreenState extends ConsumerState<TakeoverScreen> {
       body: Column(
         children: [
           PrismTopBar(
-            title: Seed.venueName,
-            subtitle: Seed.venueStatus,
-            statusDot: true,
+            title: header.title,
+            subtitle: header.subtitle,
+            statusDot: header.statusDot,
             user: user,
           ),
           Expanded(

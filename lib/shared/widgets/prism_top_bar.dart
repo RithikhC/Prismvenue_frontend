@@ -64,7 +64,9 @@ class PrismTopBar extends ConsumerWidget {
               user: user,
               onSignOut: () {
                 Navigator.of(dialogContext).pop();
-                ref.read(sessionProvider.notifier).signOut();
+                // Clears session state on this frame (so the router redirects
+                // immediately) and discards the stored token in the background.
+                ref.read(authControllerProvider).signOut();
               },
             ),
           ),

@@ -1,4 +1,4 @@
-import '../models/user.dart';
+import '../models/session_context.dart';
 import '../repositories/auth_repo.dart';
 import 'seed.dart';
 
@@ -7,28 +7,65 @@ import 'seed.dart';
 /// so all three journeys are reachable from the real sign-in screen:
 /// *floor*@… → floor staff, *owner*/*arjun*@… → owner, anything else →
 /// manager (Priya — "you're a manager", S05-1).
+///
+/// Kept in the tree deliberately: the widget suite runs against it, and it
+/// doubles as executable documentation of the shapes the API must produce.
 class MockAuthRepo implements AuthRepo {
   /// Zero: loading states are undesigned (§6-B1), so the mock resolves
   /// instantly; the real backend replaces this behind the same interface.
   static const _latency = Duration.zero;
 
+  /// The mock's venue/zone context. Ids match MockVenueRepo's seed so the
+  /// zone-scoped repositories resolve against the same fixtures.
+  static const _context = SessionContext(
+    venueId: Seed.managerVenueId,
+    venueName: Seed.venueName,
+    zoneId: Seed.managerZoneId,
+    zoneName: Seed.zoneName,
+  );
+
+  bool _signedOut = false;
+
   @override
-  Future<User> signIn(String email, String password) async {
+  Future<AuthSession> signIn(String email, String password) async {
     await Future<void>.delayed(_latency);
+    _signedOut = false;
     final e = email.toLowerCase();
-    if (e.contains('floor')) return Seed.floorUser;
-    if (e.contains('owner') || e.contains('arjun')) return Seed.ownerUser;
-    return Seed.managerUser;
+    final user = e.contains('floor')
+        ? Seed.floorUser
+        : (e.contains('owner') || e.contains('arjun'))
+            ? Seed.ownerUser
+            : Seed.managerUser;
+    return AuthSession(user: user, context: _context);
   }
 
   @override
   Future<void> sendResetCode(String email) => Future.delayed(_latency);
 
   @override
-  Future<void> verifyResetCode(String email, String code) =>
-      Future.delayed(_latency);
+  Future<String> verifyResetCode(String email, String code) async {
+    await Future<void>.delayed(_latency);
+    // A stand-in for the real proof-of-verification token; the mock accepts
+    // any code, so it always succeeds.
+    return 'mock-reset-token';
+  }
 
   @override
-  Future<void> saveNewPassword(String email, String password) =>
+  Future<void> saveNewPassword({
+    required String email,
+    required String password,
+    required String resetToken,
+  }) =>
       Future.delayed(_latency);
+
+  /// The mock has no persistence, so a "restart" is always signed out. Tests
+  /// that want a signed-in start call [signIn] through the real S00-1 screen.
+  @override
+  Future<AuthSession?> restoreSession() async => null;
+
+  @override
+  Future<void> signOut() async => _signedOut = true;
+
+  /// Exposed for tests that assert sign-out reached the repository.
+  bool get signedOut => _signedOut;
 }

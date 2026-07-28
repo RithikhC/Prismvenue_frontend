@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/session.dart';
-import '../../data/mock/seed.dart';
+import '../../app/venue_header.dart';
 import '../../data/models/guardrails.dart';
 import '../../data/repositories/settings_repo.dart';
 import '../../shared/widgets/prism_toggle.dart';
@@ -35,7 +35,7 @@ class VolumePolicyScreen extends ConsumerWidget {
           // §2.0: sub-screens keep the venue name; only the 10px line swaps
           // to context ("Settings · Sound" is the pinned example).
           PrismTopBar(
-            title: Seed.venueName,
+            title: ref.watch(venueNameProvider),
             subtitle: 'Settings · Sound',
             showBack: true,
             onBack: () => context.go('/settings'),

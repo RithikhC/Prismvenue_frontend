@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/session.dart';
-import '../../data/mock/seed.dart';
+import '../../app/venue_header.dart';
 import '../../data/repositories/playback_repo.dart';
 import '../../data/repositories/schedule_repo.dart';
 import '../../shared/widgets/prism_top_bar.dart';
@@ -28,15 +28,16 @@ class FloorScreen extends ConsumerWidget {
     final playback = ref.watch(nowPlayingProvider);
     final noise = ref.watch(noiseProvider);
     final schedule = ref.watch(todayScheduleProvider);
+    final header = ref.watch(venueHeaderProvider);
     if (user == null) return const SizedBox.shrink(); // router redirects
 
     return Scaffold(
       body: Column(
         children: [
           PrismTopBar(
-            title: Seed.venueName,
-            subtitle: Seed.venueStatus,
-            statusDot: true,
+            title: header.title,
+            subtitle: header.subtitle,
+            statusDot: header.statusDot,
             user: user,
           ),
           Expanded(

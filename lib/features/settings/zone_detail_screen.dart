@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/roles.dart';
 import '../../app/session.dart';
-import '../../data/mock/seed.dart';
+import '../../app/venue_header.dart';
 import '../../data/models/guardrails.dart';
 import '../../data/models/venue.dart';
 import '../../data/repositories/settings_repo.dart';
@@ -70,7 +70,7 @@ class _ZoneDetailScreenState extends ConsumerState<ZoneDetailScreen> {
         children: [
           // §2.0: venue name stays in the title slot; zone as context.
           PrismTopBar(
-            title: venue?.name ?? Seed.venueName,
+            title: venue?.name ?? ref.watch(venueNameProvider),
             subtitle: zone?.name ?? 'Zone',
             showBack: true,
             onBack: () => context.go(backTarget),

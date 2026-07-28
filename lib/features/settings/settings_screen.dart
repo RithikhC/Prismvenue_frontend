@@ -5,7 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/roles.dart';
 import '../../app/session.dart';
-import '../../data/mock/seed.dart';
+import '../../app/venue_header.dart';
 import '../../data/models/guardrails.dart';
 import '../../data/repositories/settings_repo.dart';
 import '../../data/repositories/venue_repo.dart';
@@ -31,8 +31,10 @@ class SettingsScreen extends ConsumerWidget {
     final palette = Theme.of(context).extension<PrismPalette>()!;
     final guardrails = ref.watch(guardrailsProvider).value ?? const Guardrails();
     final hours = ref.watch(openHoursProvider).value;
+    final header = ref.watch(venueHeaderProvider);
+    final venueId = ref.watch(currentVenueIdProvider);
     final venue =
-        ref.watch(venueProvider(Seed.managerVenueId)).value;
+        venueId == null ? null : ref.watch(venueProvider(venueId)).value;
     final themeMode = ref.watch(themeModeProvider);
 
     // "you're a manager" is the pinned manager copy; owner variant derived.
@@ -43,9 +45,9 @@ class SettingsScreen extends ConsumerWidget {
       body: Column(
         children: [
           PrismTopBar(
-            title: Seed.venueName,
-            subtitle: Seed.venueStatus,
-            statusDot: true,
+            title: header.title,
+            subtitle: header.subtitle,
+            statusDot: header.statusDot,
             user: user,
           ),
           Expanded(
@@ -61,7 +63,7 @@ class SettingsScreen extends ConsumerWidget {
                           fontWeight: FontWeight.w700,
                           color: palette.textPrimary)),
                   const SizedBox(height: 3),
-                  Text('${Seed.venueName} · $roleLine',
+                  Text('${header.title} · $roleLine',
                       style: PrismType.label.copyWith(
                           fontWeight: FontWeight.w400,
                           color: palette.textSecondary)),

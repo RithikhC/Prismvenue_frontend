@@ -15,6 +15,12 @@ class Seed {
   /// The single venue the manager operates (S04-1 is their /venues).
   static const managerVenueId = 'marina-cafe';
 
+  /// The zone the app operates on by default. Matches MockVenueRepo's first
+  /// Marina Café zone, so the zone-scoped repositories and the venue list
+  /// agree about which room is on screen.
+  static const managerZoneId = 'main-floor';
+  static const zoneName = 'Main floor';
+
   static const floorUser = User(
     id: 'u-priya',
     name: 'Priya Nair',

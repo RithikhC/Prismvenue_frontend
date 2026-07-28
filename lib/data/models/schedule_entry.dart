@@ -13,14 +13,22 @@ class ScheduleEntry {
 enum ScheduleMode { selfDrive, custom }
 
 /// One block of the custom weekly plan — §2 S03-2 row: time range 11/700 +
-/// mood dot + name. Times are display labels; how they're edited is not
-/// designed (open_questions).
+/// mood dot + name.
+///
+/// [startHour]/[endHour] are the source of truth; [rangeLabel] is derived from
+/// them. It used to be the other way round — the sheet's time field was free
+/// text and `open_questions.md` #18 flagged that no picker was designed — but a
+/// free-text label cannot be scheduled against: the backend could not compute
+/// `nowIndex` or decide what actually plays. The sheet now uses the same hour
+/// dial the open-hours flow already had. INTEGRATION_PLAN.md §5.2.
 class Daypart {
   const Daypart({
     required this.id,
     required this.dayIndex,
-    required this.rangeLabel,
+    required this.startHour,
+    required this.endHour,
     required this.moodId,
+    this.serverRangeLabel,
   });
 
   final String id;
@@ -28,16 +36,42 @@ class Daypart {
   /// 0 = Monday … 6 = Sunday.
   final int dayIndex;
 
-  /// e.g. "7 – 11 am".
-  final String rangeLabel;
+  /// 0–23, matching the hour dial's granularity.
+  final int startHour;
+  final int endHour;
 
   final String moodId;
 
-  Daypart copyWith({int? dayIndex, String? rangeLabel, String? moodId}) =>
+  /// The label as the server rendered it, when it came from the server.
+  final String? serverRangeLabel;
+
+  /// The display string, e.g. "7 – 11 am". Prefers the server's label so the
+  /// app and backend never disagree about how a range reads, and falls back to
+  /// the same formatting locally for a row the user just built in the sheet.
+  String get rangeLabel => serverRangeLabel ?? formatRange(startHour, endHour);
+
+  /// "7 – 11 am" when both ends share a meridiem, "11 am – 2 pm" otherwise.
+  /// Mirrors `range_label()` in the backend's schedule router.
+  static String formatRange(int startHour, int endHour) {
+    String h12(int h) => '${h % 12 == 0 ? 12 : h % 12}';
+    String meridiem(int h) => h < 12 ? 'am' : 'pm';
+    return meridiem(startHour) == meridiem(endHour)
+        ? '${h12(startHour)} – ${h12(endHour)} ${meridiem(endHour)}'
+        : '${h12(startHour)} ${meridiem(startHour)} – '
+            '${h12(endHour)} ${meridiem(endHour)}';
+  }
+
+  Daypart copyWith({
+    int? dayIndex,
+    int? startHour,
+    int? endHour,
+    String? moodId,
+  }) =>
       Daypart(
         id: id,
         dayIndex: dayIndex ?? this.dayIndex,
-        rangeLabel: rangeLabel ?? this.rangeLabel,
+        startHour: startHour ?? this.startHour,
+        endHour: endHour ?? this.endHour,
         moodId: moodId ?? this.moodId,
       );
 }

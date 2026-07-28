@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/session.dart';
-import '../../data/repositories/auth_repo.dart';
+import '../../shared/widgets/error_note.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../../shared/widgets/prism_field.dart';
 import '../../theme/palette.dart';
@@ -26,6 +26,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   var _obscure = true;
+  String? _error;
+  var _busy = false;
 
   @override
   void dispose() {
@@ -35,12 +37,21 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }
 
   Future<void> _signIn() async {
-    final user = await ref
-        .read(authRepoProvider)
-        .signIn(_email.text.trim(), _password.text);
-    if (!mounted) return;
-    ref.read(sessionProvider.notifier).signIn(user);
-    // The router redirect lands floor/manager on /floor, owner on /venues.
+    if (_busy) return; // a double tap must not mean two sign-in attempts
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await ref
+          .read(authControllerProvider)
+          .signIn(_email.text.trim(), _password.text);
+      // The router redirect lands floor/manager on /floor, owner on /venues.
+    } catch (e) {
+      if (mounted) setState(() => _error = messageFor(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -68,6 +79,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
             child: Icon(_obscure ? LucideIcons.eye : LucideIcons.eyeOff),
           ),
         ),
+        ErrorNote(message: _error),
         const SizedBox(height: 22),
         PrimaryButton(label: 'Sign in', auth: true, expanded: true, onTap: _signIn),
         const SizedBox(height: 18),

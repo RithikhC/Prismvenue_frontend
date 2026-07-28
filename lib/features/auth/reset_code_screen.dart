@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/repositories/auth_repo.dart';
+import '../../shared/widgets/error_note.dart';
 import '../../shared/widgets/otp_boxes.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../../theme/palette.dart';
@@ -33,9 +34,21 @@ class _ResetCodeScreenState extends ConsumerState<ResetCodeScreen> {
     super.dispose();
   }
 
+  String? _error;
+
   Future<void> _verify() async {
     final email = ref.read(resetEmailProvider);
-    await ref.read(authRepoProvider).verifyResetCode(email, _code.text);
+    setState(() => _error = null);
+    try {
+      // The token returned here is what authorises the password change on the
+      // next screen — see resetTokenProvider.
+      final resetToken =
+          await ref.read(authRepoProvider).verifyResetCode(email, _code.text);
+      ref.read(resetTokenProvider.notifier).set(resetToken);
+    } catch (e) {
+      if (mounted) setState(() => _error = messageFor(e));
+      return;
+    }
     if (!mounted) return;
     context.go('/reset/new');
   }
@@ -88,6 +101,7 @@ class _ResetCodeScreenState extends ConsumerState<ResetCodeScreen> {
             ],
           ),
         ),
+        ErrorNote(message: _error),
         const SizedBox(height: 22),
         PrimaryButton(label: 'Verify', auth: true, expanded: true, onTap: _verify),
         const SizedBox(height: 18),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/repositories/auth_repo.dart';
+import '../../shared/widgets/error_note.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../../shared/widgets/prism_field.dart';
 import '../../shared/widgets/prism_icons.dart';
@@ -35,9 +36,31 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
     super.dispose();
   }
 
+  String? _error;
+
   Future<void> _save() async {
     final email = ref.read(resetEmailProvider);
-    await ref.read(authRepoProvider).saveNewPassword(email, _password.text);
+    final resetToken = ref.read(resetTokenProvider);
+    if (resetToken == null) {
+      // Reachable by navigating straight to /reset/new — the router treats all
+      // /reset/* paths as public. Without the token the server would refuse
+      // anyway; failing here says why instead of showing a generic error.
+      setState(() => _error = 'Verify the emailed code first.');
+      return;
+    }
+    setState(() => _error = null);
+    try {
+      await ref.read(authRepoProvider).saveNewPassword(
+            email: email,
+            password: _password.text,
+            resetToken: resetToken,
+          );
+    } catch (e) {
+      if (mounted) setState(() => _error = messageFor(e));
+      return;
+    }
+    // Single-use: drop it so a stale token cannot be replayed.
+    ref.read(resetTokenProvider.notifier).set(null);
     if (!mounted) return;
     context.go('/signin');
   }
@@ -76,6 +99,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
             ),
           ],
         ),
+        ErrorNote(message: _error),
         const SizedBox(height: 22),
         PrimaryButton(
             label: 'Save new password', auth: true, expanded: true, onTap: _save),
