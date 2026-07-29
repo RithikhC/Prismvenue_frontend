@@ -34,6 +34,11 @@ abstract class PlaybackRepo {
   /// S02-4: extend ADDS the chosen duration (§6-A7).
   Future<void> extendTakeover(Duration by);
 
+  /// S02-4 "Remove auto-return instead": clears the deadline — Prism waits
+  /// until staff hand the room back themselves. The takeover stays active
+  /// and [endTakeover] still works; only the countdown stops existing.
+  Future<void> removeAutoReturn();
+
   /// S02-3 confirm (or countdown reaching zero): Prism takes the room back.
   Future<void> endTakeover();
 }

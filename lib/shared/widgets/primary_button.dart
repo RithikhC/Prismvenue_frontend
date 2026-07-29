@@ -11,12 +11,18 @@ class PrimaryButton extends StatelessWidget {
   const PrimaryButton({
     super.key,
     required this.label,
+    this.icon,
     this.onTap,
     this.expanded = false,
     this.auth = false,
   });
 
   final String label;
+
+  /// Optional leading glyph (S02-2's "Return to Prism now" carries the
+  /// rotate-ccw icon). Sized/coloured by the caller.
+  final Widget? icon;
+
   final VoidCallback? onTap;
 
   /// Fill the available width (sheet footers use flex sizing externally).
@@ -40,10 +46,22 @@ class PrimaryButton extends StatelessWidget {
             color: palette.accent,
             borderRadius: BorderRadius.circular(auth ? 999 : 12),
           ),
-          child: Text(
-            label,
-            style: PrismType.button
-                .copyWith(fontSize: auth ? 16 : 14, color: palette.chipInk),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[icon!, const SizedBox(width: 8)],
+              // Flexible, not bare: a Text inside a Row cannot wrap, and a
+              // label longer than the button would overflow instead of
+              // wrapping the way the pre-icon version did.
+              Flexible(
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: PrismType.button.copyWith(
+                      fontSize: auth ? 16 : 14, color: palette.chipInk),
+                ),
+              ),
+            ],
           ),
         ),
       ),

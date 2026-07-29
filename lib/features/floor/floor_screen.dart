@@ -6,6 +6,7 @@ import '../../app/session.dart';
 import '../../app/venue_header.dart';
 import '../../data/repositories/playback_repo.dart';
 import '../../data/repositories/schedule_repo.dart';
+import '../../shared/widgets/error_note.dart';
 import '../../shared/widgets/prism_top_bar.dart';
 import '../../shared/widgets/schedule_rail.dart';
 import '../../theme/moods.dart';
@@ -62,10 +63,17 @@ class FloorScreen extends ConsumerWidget {
                         noise: noise.value ?? 62,
                         onTogglePause: () async {
                           final repo = ref.read(playbackRepoProvider);
-                          if (state.paused) {
-                            await repo.resume();
-                          } else {
-                            await repo.pause(by: user.name.split(' ').first);
+                          try {
+                            if (state.paused) {
+                              await repo.resume();
+                            } else {
+                              await repo.pause(by: user.name.split(' ').first);
+                            }
+                          } catch (e) {
+                            // Without this the request fails and the room
+                            // simply carries on playing, with nothing on
+                            // screen to say why.
+                            if (context.mounted) showPrismError(context, e);
                           }
                         },
                         onTakeOver: () => context.go('/takeover'),
@@ -132,8 +140,11 @@ class FloorScreen extends ConsumerWidget {
       String currentMoodId) async {
     if (mood.id == currentMoodId) return; // tapping the playing tile is inert
     final confirmed = await showConfirmVibeDialog(context, mood: mood);
-    if (confirmed == true) {
+    if (confirmed != true) return;
+    try {
       await ref.read(playbackRepoProvider).setMood(mood.id);
+    } catch (e) {
+      if (context.mounted) showPrismError(context, e);
     }
   }
 }

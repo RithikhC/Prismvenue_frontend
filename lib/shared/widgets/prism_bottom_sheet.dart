@@ -20,6 +20,7 @@ class PrismBottomSheet extends StatelessWidget {
     required this.primaryLabel,
     this.onCancel,
     this.onPrimary,
+    this.footer,
   });
 
   final String title;
@@ -33,6 +34,10 @@ class PrismBottomSheet extends StatelessWidget {
   final String primaryLabel;
   final VoidCallback? onCancel;
   final VoidCallback? onPrimary;
+
+  /// Rendered BELOW the Cancel/primary row — S02-4 places "Remove
+  /// auto-return instead" under "Push it back", not above it.
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -90,6 +95,10 @@ class PrismBottomSheet extends StatelessWidget {
               ),
             ],
           ),
+          if (footer != null) ...[
+            const SizedBox(height: 12),
+            footer!,
+          ],
         ],
       ),
     );

@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:prism_venues/data/mock/mock_playback_repo.dart';
 import 'package:prism_venues/data/repositories/playback_repo.dart';
 import 'package:prism_venues/main.dart';
-import 'package:prism_venues/shared/widgets/prism_bottom_sheet.dart';
 
 /// §2 S02 Takeover: options → active countdown → extend → confirm return,
 /// plus the automatic hand-back (§6-A7).
@@ -62,25 +61,25 @@ void main() {
     await tester.tap(find.text('Start takeover'));
     await _settle(tester);
 
-    expect(find.textContaining('Your audio is playing · started'),
-        findsOneWidget);
-    // 1 hour → "60:00", ticking every second (§6-A7 m:ss). A few seconds of
-    // fake clock have elapsed across the pumps, so assert the minute mark.
+    expect(find.text("You're in control"), findsOneWidget);
+    expect(find.textContaining('Prism is handed off'), findsOneWidget);
+    expect(find.text('Prism returns in'), findsOneWidget);
+    // 1 hour shows h:mm at first ("1:00"); a few fake-clock seconds later it
+    // drops under the hour and ticks m:ss (§6-A7).
     await tester.pump(const Duration(seconds: 5));
     expect(find.textContaining('59:5'), findsOneWidget);
 
-    // Extend (sheet) — the screen also has an "Extend" button, so scope
-    // the sheet's primary by type.
-    await tester.tap(find.text('Extend').first);
+    // Extend (S02-4 "More time") with its live "New return" preview.
+    await tester.tap(find.text('Running long? Extend'));
     await _settle(tester);
-    expect(find.text('Extend takeover'), findsOneWidget);
-    await tester.tap(find.text('15 mins'));
+    expect(find.text('More time'), findsOneWidget);
+    expect(find.text('New return'), findsOneWidget);
+    await tester.tap(find.text('+15 min'));
     await _settle(tester);
-    await tester.tap(find.descendant(
-        of: find.byType(PrismBottomSheet), matching: find.text('Extend')));
+    await tester.tap(find.text('Push it back'));
     await _settle(tester);
-    // ~59:5x − settles + 15:00 ≈ 74:xx.
-    expect(find.textContaining('74:'), findsOneWidget);
+    // ~59:4x remaining + 15:00 ≈ 74 min → h:mm.
+    expect(find.textContaining('1:14'), findsOneWidget);
 
     // End the takeover so its 1s ticker isn't pending when the test-body
     // timer invariant runs (teardown disposal happens after that check).
@@ -102,7 +101,7 @@ void main() {
 
     await tester.tap(find.text('Cancel'));
     await _settle(tester);
-    expect(find.textContaining('Your audio is playing'), findsOneWidget);
+    expect(find.text("You're in control"), findsOneWidget);
 
     await tester.tap(find.text('Return to Prism now'));
     await _settle(tester);
@@ -123,12 +122,38 @@ void main() {
     await _settle(tester);
     await tester.tap(find.text('Start takeover'));
     await _settle(tester);
-    expect(find.textContaining('Your audio is playing'), findsOneWidget);
+    expect(find.text("You're in control"), findsOneWidget);
 
     await tester.pump(const Duration(minutes: 16));
     await _settle(tester);
     expect(find.text('Use your own audio'), findsOneWidget,
         reason: 'auto hand-back should return to the S02-1 options');
+  });
+
+  testWidgets('S02-4 remove auto-return: countdown becomes elapsed, '
+      'Extend disappears, end still works', (tester) async {
+    final container = await pumpTakeover(tester);
+    await tester.tap(find.text('Start takeover'));
+    await _settle(tester);
+
+    await tester.tap(find.text('Running long? Extend'));
+    await _settle(tester);
+    await tester.tap(find.text('Remove auto-return instead'));
+    await _settle(tester);
+
+    // No deadline: the countdown block flips to elapsed time and there is
+    // nothing left to extend.
+    expect(find.text('Auto-return is off'), findsOneWidget);
+    expect(find.text('Running long? Extend'), findsNothing);
+    expect(find.text('Return to Prism now'), findsOneWidget,
+        reason: 'handing back manually must still be possible');
+
+    // The footer keeps its "Started by …" line.
+    expect(find.textContaining('Started by Priya N'), findsOneWidget);
+
+    // End so the 1s elapsed heartbeat isn't a pending timer at teardown.
+    await container.read(playbackRepoProvider).endTakeover();
+    await _settle(tester);
   });
 }
 

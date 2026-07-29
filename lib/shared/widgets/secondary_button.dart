@@ -11,11 +11,17 @@ class SecondaryButton extends StatelessWidget {
   const SecondaryButton({
     super.key,
     required this.label,
+    this.icon,
     this.onTap,
     this.expanded = false,
   });
 
   final String label;
+
+  /// Optional leading glyph (S02-2's "Running long? Extend" carries the
+  /// clock icon). Sized/coloured by the caller.
+  final Widget? icon;
+
   final VoidCallback? onTap;
   final bool expanded;
 
@@ -35,8 +41,19 @@ class SecondaryButton extends StatelessWidget {
             border: Border.all(color: palette.border),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Text(label,
-              style: PrismType.button.copyWith(color: palette.textSecondary)),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[icon!, const SizedBox(width: 8)],
+              // Flexible so long labels wrap as they did before the icon slot.
+              Flexible(
+                child: Text(label,
+                    textAlign: TextAlign.center,
+                    style: PrismType.button
+                        .copyWith(color: palette.textSecondary)),
+              ),
+            ],
+          ),
         ),
       ),
     );

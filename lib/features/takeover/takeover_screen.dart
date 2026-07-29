@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/session.dart';
 import '../../app/venue_header.dart';
 import '../../data/repositories/playback_repo.dart';
+import '../../shared/widgets/pressable.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../../shared/widgets/prism_top_bar.dart';
 import '../../shared/widgets/seg_toggle.dart';
@@ -68,11 +70,16 @@ class _TakeoverScreenState extends ConsumerState<TakeoverScreen> {
                         'quiet and the speakers are yours.',
                   ),
                   const SizedBox(height: 12),
-                  // ② "Just change the vibe" variant — flow undesigned
-                  // (§6-B4): rendered inert; sub copy unknown (open_questions).
-                  const _OptionCard(
+                  // ② "Just change the vibe" — the flow was undesigned (§6-B4)
+                  // so this card shipped inert. It now returns to Floor, where
+                  // the mood grid is: changing the vibe never needed a takeover,
+                  // and a card that swallows taps reads as broken.
+                  _OptionCard(
                     icon: LucideIcons.music,
                     title: 'Just change the vibe',
+                    sub: 'Pick a different mood without handing over the '
+                        'speakers.',
+                    onTap: () => context.go('/floor'),
                   ),
                   const SizedBox(height: 12),
                   Text('Hand back to Prism after',
@@ -110,16 +117,25 @@ class _TakeoverScreenState extends ConsumerState<TakeoverScreen> {
 /// S02-1 option card: bg `surface`, border, r14, padding 18; icon + title
 /// 14/700 + sub 11.5 `textSecondary`.
 class _OptionCard extends StatelessWidget {
-  const _OptionCard({required this.icon, required this.title, this.sub});
+  const _OptionCard({
+    required this.icon,
+    required this.title,
+    this.sub,
+    this.onTap,
+  });
 
   final IconData icon;
   final String title;
   final String? sub;
 
+  /// Null leaves the card inert, as the first one is — it is a description of
+  /// what "Start takeover" below will do, not a control of its own.
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<PrismPalette>()!;
-    return Container(
+    final card = Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: palette.surface,
@@ -151,5 +167,9 @@ class _OptionCard extends StatelessWidget {
         ],
       ),
     );
+
+    // Pressable rather than a bare GestureDetector so a tappable card gets the
+    // same 92%-scale press feedback as every other control (§6-A2).
+    return onTap == null ? card : Pressable(onTap: onTap, child: card);
   }
 }

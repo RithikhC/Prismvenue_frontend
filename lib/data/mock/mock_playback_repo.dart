@@ -99,11 +99,20 @@ class MockPlaybackRepo implements PlaybackRepo {
       active: true,
       startedAt: DateTime.now(),
       remaining: handBackAfter,
+      // Seed name matching the S02-2 frame footer; the API supplies the real
+      // signed-in staff member.
+      startedByName: 'Priya N',
     ));
     // One shared 1s clock drives the visible countdown and the automatic
-    // hand-back ("Returns automatically after …", §6-A7).
+    // hand-back ("Returns automatically after …", §6-A7). With auto-return
+    // removed it keeps ticking but only re-emits, so the elapsed footer
+    // stays live without anything counting down.
     _takeoverTicker?.cancel();
     _takeoverTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!_takeover.hasAutoReturn) {
+        _emitTakeover(_takeover);
+        return;
+      }
       final next = _takeover.remaining - const Duration(seconds: 1);
       if (next <= Duration.zero) {
         endTakeover();
@@ -118,6 +127,15 @@ class MockPlaybackRepo implements PlaybackRepo {
     if (!_takeover.active) return;
     // §6-A7: extend adds the chosen duration.
     _emitTakeover(_takeover.copyWith(remaining: _takeover.remaining + by));
+  }
+
+  @override
+  Future<void> removeAutoReturn() async {
+    if (!_takeover.active) return;
+    _emitTakeover(_takeover.copyWith(
+      hasAutoReturn: false,
+      remaining: Duration.zero,
+    ));
   }
 
   @override

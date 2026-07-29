@@ -49,6 +49,15 @@ class ApiPlaybackRepo implements PlaybackRepo {
   int _listeners = 0;
   TakeoverState _lastTakeover = TakeoverState.inactive;
 
+  /// Non-null while a connection attempt is in flight.
+  ///
+  /// Without this, the three watchers the Floor screen mounts in the same frame
+  /// each see `_events == null` and open their own stream — and every
+  /// navigation does it again. Browsers cap concurrent connections per origin
+  /// at around six, so leaked streams silently starve every ordinary request
+  /// on the same host until they time out.
+  Future<void>? _connecting;
+
   // --- Now playing / noise ---------------------------------------------------
 
   @override
@@ -129,6 +138,13 @@ class ApiPlaybackRepo implements PlaybackRepo {
   }
 
   @override
+  Future<void> removeAutoReturn() async {
+    await _client
+        .post('/zones/${_scope.requireZone()}/takeover/remove-auto-return');
+    await _takeover.refresh();
+  }
+
+  @override
   Future<void> endTakeover() async {
     await _client.post('/zones/${_scope.requireZone()}/takeover/end');
     await _takeover.refresh();
@@ -141,6 +157,12 @@ class ApiPlaybackRepo implements PlaybackRepo {
     _countdown?.cancel();
     _countdown = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!_lastTakeover.active) return;
+      if (!_lastTakeover.hasAutoReturn) {
+        // Nothing to count down, but the active screen's elapsed footer
+        // ("Started by … · 12 min ago") still needs a heartbeat to stay live.
+        _takeover.emit(_lastTakeover);
+        return;
+      }
       final next = _lastTakeover.remaining - const Duration(seconds: 1);
       if (next <= Duration.zero) {
         _countdown?.cancel();
@@ -157,9 +179,10 @@ class ApiPlaybackRepo implements PlaybackRepo {
 
   // --- Realtime --------------------------------------------------------------
 
+  /// Opens at most ONE stream, however many watchers ask for it.
   void _ensureStreaming() {
-    if (_events != null || _pollFallback != null) return;
-    unawaited(_connect());
+    if (_events != null || _pollFallback != null || _connecting != null) return;
+    _connecting = _connect().whenComplete(() => _connecting = null);
   }
 
   void _stopStreaming() {
@@ -175,6 +198,10 @@ class ApiPlaybackRepo implements PlaybackRepo {
     final zoneId = _scope.zoneId();
     final token = await _tokens.readAccessToken();
     if (zoneId == null || token == null) return _startPolling();
+
+    // Belt and braces: never leave a previous stream holding a socket.
+    await _events?.cancel();
+    _events = null;
 
     try {
       // EventSource cannot set headers, so the token travels as a query
@@ -284,6 +311,8 @@ class ApiPlaybackRepo implements PlaybackRepo {
       active: true,
       startedAt: startedAt == null ? null : DateTime.tryParse(startedAt),
       remaining: Duration(seconds: json['remaining_seconds'] as int? ?? 0),
+      hasAutoReturn: json['has_auto_return'] as bool? ?? true,
+      startedByName: json['started_by_name'] as String?,
     );
   }
 

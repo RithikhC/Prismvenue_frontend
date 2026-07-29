@@ -261,6 +261,8 @@ void main() {
         'active': true,
         'started_at': '2026-07-27T11:02:14Z',
         'remaining_seconds': 108,
+        'has_auto_return': true,
+        'started_by_name': 'Priya Nair',
       };
 
       final repo = buildPlayback();
@@ -270,6 +272,59 @@ void main() {
       expect(state.remaining, const Duration(seconds: 108));
       // §6-A7 countdown format, rendered from this.
       expect(state.countdownLabel, '1:48');
+      expect(state.hasAutoReturn, isTrue);
+      // The S02-2 footer's "Started by …".
+      expect(state.startedByName, 'Priya Nair');
+      repo.dispose();
+    });
+
+    test('hour-scale countdowns render h:mm, matching the S02 frames',
+        () async {
+      // 1h48m — the frame shows "1:48", not "108:00".
+      routes['/takeover'] = {
+        'active': true,
+        'started_at': '2026-07-27T11:02:14Z',
+        'remaining_seconds': 6480,
+        'has_auto_return': true,
+      };
+
+      final repo = buildPlayback();
+      final state = await repo.watchTakeover().first;
+
+      expect(state.countdownLabel, '1:48');
+      repo.dispose();
+    });
+
+    test('maps a takeover whose auto-return was removed', () async {
+      routes['/takeover'] = {
+        'active': true,
+        'started_at': '2026-07-27T11:02:14Z',
+        'remaining_seconds': 0,
+        'has_auto_return': false,
+        'started_by_name': 'Aaqib',
+      };
+
+      final repo = buildPlayback();
+      final state = await repo.watchTakeover().first;
+
+      expect(state.active, isTrue);
+      expect(state.hasAutoReturn, isFalse);
+      repo.dispose();
+    });
+
+    test('removeAutoReturn posts to the endpoint and refreshes', () async {
+      routes['/takeover'] = {
+        'active': true,
+        'remaining_seconds': 600,
+        'has_auto_return': true,
+      };
+      final repo = buildPlayback();
+
+      await repo.removeAutoReturn();
+
+      final post = sent.firstWhere((r) => r.method == 'POST');
+      expect(post.url.path, endsWith('/takeover/remove-auto-return'));
+      expect(post.headers['Idempotency-Key'], isNotEmpty);
       repo.dispose();
     });
 
