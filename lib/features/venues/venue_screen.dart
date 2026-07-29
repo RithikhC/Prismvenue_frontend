@@ -87,6 +87,25 @@ class VenueScreen extends ConsumerWidget {
                             name: zone.name,
                             statusText: _statusText(zone),
                             status: _rowStatus(zone.status),
+                            // S04-1 "Open floor →": with more than one zone,
+                            // each row can point the whole app at that room —
+                            // the Floor, Schedule and Settings tabs all follow
+                            // the session's current zone.
+                            actionLabel:
+                                venue.zones.length > 1 ? 'Open floor' : null,
+                            onAction: venue.zones.length > 1
+                                ? () {
+                                    ref
+                                        .read(sessionContextProvider.notifier)
+                                        .operateZone(
+                                          venueId: venue.id,
+                                          venueName: venue.name,
+                                          zoneId: zone.id,
+                                          zoneName: zone.name,
+                                        );
+                                    context.go('/floor');
+                                  }
+                                : null,
                             quickFixLabel:
                                 zone.status == ZoneStatus.offSchedule
                                     ? 'Return to Auto'

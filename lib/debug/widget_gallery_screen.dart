@@ -50,11 +50,11 @@ class WidgetGalleryScreen extends StatelessWidget {
   );
 
   static const _schedule = [
-    ScheduleEntry(timeLabel: '7:00', moodId: 'morning-calm'),
-    ScheduleEntry(timeLabel: '11:00', moodId: 'daytime-flow'),
-    ScheduleEntry(timeLabel: '2:00', moodId: 'afternoon-lift'),
-    ScheduleEntry(timeLabel: '6:00', moodId: 'evening-warmth'),
-    ScheduleEntry(timeLabel: '9:00', moodId: 'peak'),
+    ScheduleEntry(timeLabel: '7:00 am', moodId: 'morning-calm'),
+    ScheduleEntry(timeLabel: '11:00 am', moodId: 'daytime-flow'),
+    ScheduleEntry(timeLabel: '2:00 pm', moodId: 'afternoon-lift'),
+    ScheduleEntry(timeLabel: '6:00 pm', moodId: 'evening-warmth'),
+    ScheduleEntry(timeLabel: '9:00 pm', moodId: 'peak'),
   ];
 
   @override

@@ -17,6 +17,8 @@ class ZoneRow extends StatelessWidget {
     required this.name,
     required this.statusText,
     this.status = ZoneStatus.ok,
+    this.actionLabel,
+    this.onAction,
     this.quickFixLabel,
     this.onQuickFix,
     this.onTap,
@@ -25,6 +27,12 @@ class ZoneRow extends StatelessWidget {
   final String name;
   final String statusText;
   final ZoneStatus status;
+
+  /// Trailing link with a chevron — S04-1 "Open floor →". Coexists with the
+  /// quick-fix (the frame's off-schedule row carries both, stacked); replaces
+  /// the plain chevron when present, since it IS the navigation affordance.
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   /// e.g. "Return to Auto" (off-schedule rows).
   final String? quickFixLabel;
@@ -66,12 +74,40 @@ class ZoneRow extends StatelessWidget {
                 ],
               ),
             ),
-            if (quickFixLabel != null)
-              GestureDetector(
-                onTap: onQuickFix,
-                child: Text(quickFixLabel!,
-                    style: PrismType.button
-                        .copyWith(fontSize: 12, color: palette.accent)),
+            if (actionLabel != null || quickFixLabel != null)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (actionLabel != null)
+                    GestureDetector(
+                      onTap: onAction,
+                      behavior: HitTestBehavior.opaque,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(actionLabel!,
+                              style: PrismType.button.copyWith(
+                                  fontSize: 12, color: palette.accent)),
+                          const SizedBox(width: 3),
+                          PrismChevron(
+                            direction: ChevronDirection.right,
+                            size: 11,
+                            color: palette.accent,
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (actionLabel != null && quickFixLabel != null)
+                    const SizedBox(height: 6),
+                  if (quickFixLabel != null)
+                    GestureDetector(
+                      onTap: onQuickFix,
+                      behavior: HitTestBehavior.opaque,
+                      child: Text(quickFixLabel!,
+                          style: PrismType.button
+                              .copyWith(fontSize: 12, color: palette.accent)),
+                    ),
+                ],
               )
             else
               PrismChevron(

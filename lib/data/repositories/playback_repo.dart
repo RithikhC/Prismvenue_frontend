@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/session.dart';
 import '../mock/mock_playback_repo.dart';
 import '../models/playback_state.dart';
 import '../models/takeover_state.dart';
@@ -50,14 +51,23 @@ final playbackRepoProvider = Provider<PlaybackRepo>((ref) {
 });
 
 /// §5 State: nowPlayingProvider (Stream, mock ticks).
-final nowPlayingProvider = StreamProvider.autoDispose<PlaybackState>(
-    (ref) => ref.watch(playbackRepoProvider).watchNowPlaying());
+///
+/// Each watches the current zone so it resubscribes once sign-in establishes
+/// one — a stream started before then has no zone to fetch for.
+final nowPlayingProvider = StreamProvider.autoDispose<PlaybackState>((ref) {
+  ref.watch(currentZoneIdProvider);
+  return ref.watch(playbackRepoProvider).watchNowPlaying();
+});
 
-final noiseProvider = StreamProvider.autoDispose<int>(
-    (ref) => ref.watch(playbackRepoProvider).watchNoise());
+final noiseProvider = StreamProvider.autoDispose<int>((ref) {
+  ref.watch(currentZoneIdProvider);
+  return ref.watch(playbackRepoProvider).watchNoise();
+});
 
-final takeoverStateProvider = StreamProvider.autoDispose<TakeoverState>(
-    (ref) => ref.watch(playbackRepoProvider).watchTakeover());
+final takeoverStateProvider = StreamProvider.autoDispose<TakeoverState>((ref) {
+  ref.watch(currentZoneIdProvider);
+  return ref.watch(playbackRepoProvider).watchTakeover();
+});
 
 /// §5 State: takeoverCountdownProvider — the ticking remaining time.
 final takeoverCountdownProvider = Provider.autoDispose<Duration>((ref) =>

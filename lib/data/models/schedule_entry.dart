@@ -2,7 +2,9 @@
 class ScheduleEntry {
   const ScheduleEntry({required this.timeLabel, required this.moodId});
 
-  /// Short time label, e.g. "7:00" (rail column is w34 at 11/700).
+  /// Short time label, e.g. "7:00 am". Carries a meridiem because 07:00 and
+  /// 19:00 rendered identically without one (the frames' bare "7:00" assumed
+  /// a daytime-only schedule).
   final String timeLabel;
 
   /// References the fixed 6-mood set (theme/moods.dart).

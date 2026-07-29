@@ -1,9 +1,11 @@
 import 'dart:convert';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:prism_venues/data/api/api_client.dart';
+import 'package:prism_venues/data/api/api_exception.dart';
 import 'package:prism_venues/data/api/api_scope.dart';
 import 'package:prism_venues/data/api/api_settings_repo.dart';
 import 'package:prism_venues/data/api/token_store.dart';
@@ -52,12 +54,32 @@ void main() {
     };
   });
 
-  ApiSettingsRepo buildRepo({String? zoneId = 'z-1', String? venueId = 'v-1'}) {
+  ApiSettingsRepo buildRepo({
+    String? zoneId = 'z-1',
+    String? venueId = 'v-1',
+    // Zero here so `await updateGuardrails(...)` in shape-mapping tests means
+    // "written"; the debounce-behaviour tests pass a real duration and drive
+    // the clock with fakeAsync.
+    Duration writeDebounce = Duration.zero,
+    int putStatus = 200,
+  }) {
     final client = ApiClient(
       baseUrl: 'http://localhost:8000/v1',
       tokens: InMemoryTokenStore(),
       httpClient: MockClient((request) async {
         sent.add(request);
+        if (request.method == 'PUT' && putStatus >= 400) {
+          return http.Response(
+            jsonEncode({
+              'error': {
+                'code': 'forbidden',
+                'message': 'Only managers and owners can change guardrails.',
+              }
+            }),
+            putStatus,
+            headers: {'content-type': 'application/json'},
+          );
+        }
         final match = responses.entries
             .where((e) => request.url.path.contains(e.key))
             .firstOrNull;
@@ -71,6 +93,7 @@ void main() {
     return ApiSettingsRepo(
       client,
       ApiScope(zoneId: () => zoneId, venueId: () => venueId),
+      writeDebounce: writeDebounce,
     );
   }
 
@@ -230,6 +253,136 @@ void main() {
       final repo = buildRepo(zoneId: null);
 
       await expectLater(repo.watchGuardrails().first, throwsA(anything));
+    });
+
+    test('a failed first fetch does not kill the subscription', () async {
+      // The router subscribes to guardrails at startup, before sign-in, when
+      // there is no zone yet. An `async*` stream ended permanently on that
+      // throw, so settings rendered fallback defaults for the whole session
+      // and the volume slider could never move.
+      String? zoneId; // not signed in yet
+      final client = ApiClient(
+        baseUrl: 'http://localhost:8000/v1',
+        tokens: InMemoryTokenStore(),
+        httpClient: MockClient((request) async {
+          sent.add(request);
+          return http.Response(jsonEncode(guardrailsJson), 200,
+              headers: {'content-type': 'application/json'});
+        }),
+      );
+      final repo = ApiSettingsRepo(
+        client,
+        ApiScope(zoneId: () => zoneId, venueId: () => 'v-1'),
+        writeDebounce: Duration.zero,
+      );
+
+      final seen = <Object>[];
+      final sub = repo.watchGuardrails().listen(
+            seen.add,
+            onError: seen.add,
+          );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(seen.single, isA<ApiException>(),
+          reason: 'the missing zone should surface as an error');
+
+      // Sign-in happens: the zone appears and a refresh is issued.
+      zoneId = 'z-1';
+      await repo.refreshGuardrailsForTest();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(seen.last, isA<Guardrails>(),
+          reason: 'the same listener must still receive later values');
+      await sub.cancel();
+      repo.dispose();
+    });
+  });
+
+  group('write debounce', () {
+    test('a drag storm coalesces into one PUT carrying the last value', () {
+      // The volume slider calls updateGuardrails on every pixel — 403 writes
+      // were observed from a single drag against the real backend.
+      fakeAsync((async) {
+        final repo =
+            buildRepo(writeDebounce: const Duration(milliseconds: 400));
+
+        for (var v = 30; v <= 60; v++) {
+          repo.updateGuardrails(Guardrails(volumeMin: v));
+        }
+
+        // Still inside the settle window: nothing on the wire.
+        async.elapse(const Duration(milliseconds: 399));
+        async.flushMicrotasks();
+        expect(sent.where((r) => r.method == 'PUT'), isEmpty);
+
+        async.elapse(const Duration(milliseconds: 1));
+        async.flushMicrotasks();
+
+        final puts = sent.where((r) => r.method == 'PUT').toList();
+        expect(puts, hasLength(1));
+        // The whole object is the wire contract, so the newest value IS the
+        // complete intended state — nothing is lost by dropping the rest.
+        expect(jsonDecode(puts.single.body)['volume_min_pct'], 60);
+        repo.dispose();
+      });
+    });
+
+    test('a second adjustment after settling writes again', () {
+      fakeAsync((async) {
+        final repo =
+            buildRepo(writeDebounce: const Duration(milliseconds: 400));
+
+        repo.updateGuardrails(const Guardrails(volumeMin: 30));
+        async.elapse(const Duration(milliseconds: 400));
+        async.flushMicrotasks();
+
+        repo.updateGuardrails(const Guardrails(volumeMin: 45));
+        async.elapse(const Duration(milliseconds: 400));
+        async.flushMicrotasks();
+
+        final puts = sent.where((r) => r.method == 'PUT').toList();
+        expect(puts, hasLength(2));
+        expect(jsonDecode(puts.last.body)['volume_min_pct'], 45);
+        repo.dispose();
+      });
+    });
+
+    test('the slider tracks immediately even though the write waits', () {
+      fakeAsync((async) {
+        final repo =
+            buildRepo(writeDebounce: const Duration(milliseconds: 400));
+        Guardrails? seen;
+        final sub = repo.watchGuardrails().listen((g) => seen = g);
+        async.flushMicrotasks();
+
+        repo.updateGuardrails(const Guardrails(volumeMin: 42));
+        async.flushMicrotasks();
+
+        // Optimistic emit reached the stream; the network has seen nothing.
+        expect(seen!.volumeMin, 42);
+        expect(sent.where((r) => r.method == 'PUT'), isEmpty);
+        sub.cancel();
+        repo.dispose();
+      });
+    });
+
+    test('a refused write snaps back to server truth instead of lying',
+        () async {
+      final repo = buildRepo(putStatus: 403);
+      final seen = <Guardrails>[];
+      final sub = repo.watchGuardrails().listen(seen.add);
+      await Future<void>.delayed(Duration.zero);
+
+      // Never throws — no screen awaits this call, so a throw would be an
+      // unhandled async exception, not feedback. The revert IS the feedback.
+      await repo.updateGuardrails(const Guardrails(volumeMin: 90));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(seen.map((g) => g.volumeMin), containsAllInOrder([90, 30]));
+      expect(seen.last.volumeMin, 30,
+          reason: 'the optimistic value must not survive a failed write');
+      await sub.cancel();
+      repo.dispose();
     });
   });
 }

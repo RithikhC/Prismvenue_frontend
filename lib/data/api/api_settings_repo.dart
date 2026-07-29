@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 import '../models/guardrails.dart';
 import '../repositories/settings_repo.dart';
 import 'api_client.dart';
@@ -24,10 +28,27 @@ import 'watchable.dart';
 ///   Since the app PUTs the whole object on every toggle, they are simply
 ///   omitted here and the server preserves them. Sending nulls would wipe them.
 class ApiSettingsRepo implements SettingsRepo {
-  ApiSettingsRepo(this._client, this._scope);
+  ApiSettingsRepo(
+    this._client,
+    this._scope, {
+    this.writeDebounce = const Duration(milliseconds: 400),
+  });
 
   final ApiClient _client;
   final ApiScope _scope;
+
+  /// How long the guardrails PUT waits for the value to settle. The volume
+  /// sliders call [updateGuardrails] on every pixel of a drag — the screen's
+  /// `onChanged` fires per frame, by the interface's own design — which
+  /// against a real network meant one drag produced hundreds of writes (403
+  /// were observed) that also starved the browser's ~6-per-origin connection
+  /// pool. Zero in tests that want the write immediately.
+  final Duration writeDebounce;
+
+  Timer? _guardrailsTimer;
+  Guardrails? _pendingGuardrails;
+  bool _flushing = false;
+  Completer<void>? _settled;
 
   late final _guardrails = Watchable<Guardrails>(
     _fetchGuardrails,
@@ -43,18 +64,77 @@ class ApiSettingsRepo implements SettingsRepo {
   @override
   Stream<Guardrails> watchGuardrails() => _guardrails.watch();
 
+  /// Emits immediately, writes once the value settles.
+  ///
+  /// The emit is what makes the slider track the manager's finger; the
+  /// debounced flush is what keeps a drag from being hundreds of PUTs.
+  /// Consecutive calls within [writeDebounce] coalesce — the interface sends
+  /// the whole object every time, so the newest value IS the whole intended
+  /// state and the intermediate ones carry no information.
+  ///
+  /// The returned future completes when the burst has been flushed. It never
+  /// errors: on a failed write the repo refreshes from the server, so the UI
+  /// visibly snaps back to truth rather than silently keeping a value that
+  /// never landed. (No screen awaits this today — a thrown error would be an
+  /// unhandled async exception, not feedback.)
   @override
-  Future<void> updateGuardrails(Guardrails next) async {
-    // Pushed before the round trip completes so the slider the manager is
-    // dragging tracks their finger. The refresh below is still the source of
-    // truth — if the server clamps a value, the clamped one wins.
+  Future<void> updateGuardrails(Guardrails next) {
     _guardrails.emit(next);
-    await _client.put(
-      '/zones/${_scope.requireZone()}/guardrails',
-      body: _guardrailsToJson(next),
-    );
-    await _guardrails.refresh();
+    _pendingGuardrails = next;
+    _settled ??= Completer<void>();
+    final settled = _settled!.future;
+
+    _guardrailsTimer?.cancel();
+    _guardrailsTimer = Timer(writeDebounce, () {
+      unawaited(_flushGuardrails());
+    });
+    return settled;
   }
+
+  /// Serialized: one PUT in flight at a time, so writes cannot land out of
+  /// order and resurrect a value the manager already dragged past.
+  Future<void> _flushGuardrails() async {
+    if (_flushing) return;
+    _flushing = true;
+    try {
+      while (_pendingGuardrails != null) {
+        final toWrite = _pendingGuardrails!;
+        _pendingGuardrails = null;
+        try {
+          await _client.put(
+            '/zones/${_scope.requireZone()}/guardrails',
+            body: _guardrailsToJson(toWrite),
+          );
+        } catch (_) {
+          // Swallowed deliberately — see updateGuardrails. The refresh below
+          // reverts the optimistic emit, which is the visible signal.
+        }
+      }
+      // One sync with server truth per burst — after success it confirms the
+      // write (a clamped value wins over the optimistic emit), after failure
+      // it reverts. Skipped if the manager has already moved on; the next
+      // flush will do it.
+      if (_pendingGuardrails == null) {
+        await _guardrails.refresh().catchError((_) {});
+      }
+    } finally {
+      _flushing = false;
+      final settled = _settled;
+      if (_pendingGuardrails == null) {
+        _settled = null;
+        settled?.complete();
+      } else {
+        // A change arrived while we were refreshing — go again.
+        unawaited(_flushGuardrails());
+      }
+    }
+  }
+
+  /// Re-reads guardrails from the server. Exposed for the test that proves a
+  /// stream survives a failed first fetch; production code reaches this
+  /// through the provider resubscribing when the current zone changes.
+  @visibleForTesting
+  Future<void> refreshGuardrailsForTest() => _guardrails.refresh();
 
   Future<Guardrails> _fetchGuardrails() async {
     final json = await _client.get('/zones/${_scope.requireZone()}/guardrails')
@@ -237,6 +317,22 @@ class ApiSettingsRepo implements SettingsRepo {
       (index >= 0 && index < options.length) ? options[index] : fallback;
 
   void dispose() {
+    _guardrailsTimer?.cancel();
+    // Best effort for a change made in the debounce window just before
+    // teardown — fired without awaiting, since there is nothing left to
+    // update on failure.
+    final pending = _pendingGuardrails;
+    _pendingGuardrails = null;
+    if (pending != null) {
+      unawaited(_client
+          .put(
+            '/zones/${_scope.requireZone()}/guardrails',
+            body: _guardrailsToJson(pending),
+          )
+          .catchError((_) => null));
+    }
+    _settled?.complete();
+    _settled = null;
     _guardrails.dispose();
     _openHours.dispose();
   }

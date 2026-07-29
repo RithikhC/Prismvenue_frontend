@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/session.dart';
 import '../mock/mock_settings_repo.dart';
 import '../models/guardrails.dart';
 
@@ -19,8 +20,17 @@ final settingsRepoProvider = Provider<SettingsRepo>((ref) {
   return repo;
 });
 
-final guardrailsProvider = StreamProvider.autoDispose<Guardrails>(
-    (ref) => ref.watch(settingsRepoProvider).watchGuardrails());
+/// Watching the current zone/venue is what makes these resubscribe once
+/// sign-in establishes them. Without it, a provider subscribed before sign-in
+/// (the router listens to guardrails at startup for the S05-4 takeover gate)
+/// fetches with no zone, fails, and has nothing to tell it to try again — so
+/// every settings screen renders fallback defaults for the whole session.
+final guardrailsProvider = StreamProvider.autoDispose<Guardrails>((ref) {
+  ref.watch(currentZoneIdProvider);
+  return ref.watch(settingsRepoProvider).watchGuardrails();
+});
 
-final openHoursProvider = StreamProvider.autoDispose<OpenHours>(
-    (ref) => ref.watch(settingsRepoProvider).watchOpenHours());
+final openHoursProvider = StreamProvider.autoDispose<OpenHours>((ref) {
+  ref.watch(currentVenueIdProvider);
+  return ref.watch(settingsRepoProvider).watchOpenHours();
+});

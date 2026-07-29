@@ -30,6 +30,29 @@ class SessionContextNotifier extends Notifier<SessionContext?> {
   SessionContext? build() => null;
 
   void set(SessionContext? context) => state = context;
+
+  /// The zone picker's entry point — S04-1 "Open floor".
+  ///
+  /// Repoints every zone-scoped repository at another room: the providers
+  /// watch [currentZoneIdProvider], so switching here refetches Floor,
+  /// Schedule and Settings for the new zone. Venue fields travel too, so an
+  /// owner opening a floor in a different venue switches whole-venue context
+  /// (open hours, the top-bar name) along with the zone.
+  ///
+  /// In-memory only, like the rest of the session context: a reload lands
+  /// back on the server's default zone from /auth/me.
+  void operateZone({
+    required String venueId,
+    required String venueName,
+    required String zoneId,
+    required String zoneName,
+  }) =>
+      state = SessionContext(
+        venueId: venueId,
+        venueName: venueName,
+        zoneId: zoneId,
+        zoneName: zoneName,
+      );
 }
 
 /// The zone every zone-scoped repository operates on.

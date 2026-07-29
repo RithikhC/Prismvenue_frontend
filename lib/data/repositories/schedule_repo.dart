@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/session.dart';
 import '../mock/mock_schedule_repo.dart';
 import '../models/schedule_entry.dart';
 
@@ -26,11 +27,18 @@ final scheduleRepoProvider = Provider<ScheduleRepo>((ref) {
   return repo;
 });
 
-final todayScheduleProvider = StreamProvider.autoDispose<TodaySchedule>(
-    (ref) => ref.watch(scheduleRepoProvider).watchToday());
+/// Zone-scoped, so each resubscribes when sign-in establishes the zone.
+final todayScheduleProvider = StreamProvider.autoDispose<TodaySchedule>((ref) {
+  ref.watch(currentZoneIdProvider);
+  return ref.watch(scheduleRepoProvider).watchToday();
+});
 
-final scheduleModeProvider = StreamProvider.autoDispose<ScheduleMode>(
-    (ref) => ref.watch(scheduleRepoProvider).watchMode());
+final scheduleModeProvider = StreamProvider.autoDispose<ScheduleMode>((ref) {
+  ref.watch(currentZoneIdProvider);
+  return ref.watch(scheduleRepoProvider).watchMode();
+});
 
-final weekPlanProvider = StreamProvider.autoDispose<List<Daypart>>(
-    (ref) => ref.watch(scheduleRepoProvider).watchWeekPlan());
+final weekPlanProvider = StreamProvider.autoDispose<List<Daypart>>((ref) {
+  ref.watch(currentZoneIdProvider);
+  return ref.watch(scheduleRepoProvider).watchWeekPlan();
+});

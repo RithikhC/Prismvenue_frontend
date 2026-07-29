@@ -79,6 +79,62 @@ void main() {
     expect(find.text('Auto · Evening warmth'), findsOneWidget);
   });
 
+  testWidgets('S04-1 "Open floor": switches the whole app to that zone',
+      (tester) async {
+    // Manager with two zones — the picker's home case.
+    await tester.binding.setSurfaceSize(const Size(1024, 768));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final container = ProviderContainer(overrides: [
+      playbackRepoProvider.overrideWith((ref) {
+        final repo = MockPlaybackRepo(tickNoise: false);
+        ref.onDispose(repo.dispose);
+        return repo;
+      }),
+    ]);
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const PrismVenuesApp(),
+      ),
+    );
+    await _settle(tester);
+    await tester.enterText(
+        find.byType(TextField).first, 'priya@marinacafe.com');
+    await tester.tap(find.text('Sign in'));
+    await _settle(tester);
+
+    // Signed in operating Main floor.
+    expect(find.text('Main floor · online'), findsOneWidget);
+
+    await tester.tap(find.text('Venues'));
+    await _settle(tester);
+
+    // Two zones → every row offers Open floor.
+    expect(find.text('Open floor'), findsNWidgets(2));
+
+    // Open the Terrace's floor: rows follow mock order, so .at(1) is Terrace.
+    await tester.tap(find.text('Open floor').at(1));
+    await _settle(tester);
+
+    // Landed on Floor, and the whole session now points at the Terrace —
+    // the top bar follows the switched zone.
+    expect(find.text('NOW PLAYING'), findsOneWidget);
+    expect(find.text('Terrace · online'), findsOneWidget);
+    expect(find.text('Main floor · online'), findsNothing);
+  });
+
+  testWidgets('a single-zone venue offers no "Open floor"', (tester) async {
+    await pumpPortfolio(tester);
+
+    await tester.tap(find.text('Harbor House'));
+    await _settle(tester);
+
+    expect(find.text('Dining room'), findsOneWidget);
+    // One zone: there is nothing to switch between.
+    expect(find.text('Open floor'), findsNothing);
+  });
+
   testWidgets('S04-3/4: add venue with a zone from the sheet',
       (tester) async {
     await pumpPortfolio(tester);

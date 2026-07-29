@@ -144,8 +144,8 @@ void main() {
       // It depends on the venue's timezone, which the client does not know.
       routes['/today'] = {
         'entries': [
-          {'time_label': '7:00', 'mood_id': 'morning-calm'},
-          {'time_label': '2:00', 'mood_id': 'afternoon-lift'},
+          {'time_label': '7:00 am', 'mood_id': 'morning-calm'},
+          {'time_label': '2:00 pm', 'mood_id': 'afternoon-lift'},
         ],
         'now_index': 1,
         'auto': true,
@@ -155,7 +155,7 @@ void main() {
           await ApiScheduleRepo(buildClient(), scope()).watchToday().first;
 
       expect(today.nowIndex, 1);
-      expect(today.entries.first.timeLabel, '7:00');
+      expect(today.entries.first.timeLabel, '7:00 am');
       expect(today.auto, isTrue);
     });
 

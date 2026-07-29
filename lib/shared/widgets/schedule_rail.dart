@@ -81,7 +81,11 @@ class ScheduleRail extends StatelessWidget {
       final content = Row(
         children: [
           SizedBox(
-            width: 34,
+            // The frame pinned w34 for bare "7:00" labels; the meridiem
+            // ("11:00 pm") exists because 07:00 and 19:00 rendered
+            // identically once evening dayparts arrived, and it needs the
+            // extra room.
+            width: 52,
             child: Text(
               entry.timeLabel,
               style: PrismType.label.copyWith(
