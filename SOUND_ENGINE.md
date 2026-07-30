@@ -189,18 +189,42 @@ flutter run -d macos --dart-define=PRISM_USE_MOCKS=true
 
 > **Expect a short silence when the mood changes.** Known limitation, see below.
 
-### Against the real backend (optional)
+### Against the real backend
 
-Only if you have been given an API URL. Nothing about the audio path changes:
+Mock mode is the fastest way to check that audio works. Once it does, running
+against the real API is the more interesting test — real venues, real zones, the
+weekly schedule actually driving the mood, and changes made on one device showing
+up on another.
+
+Nothing about the audio path changes. Swap one flag:
 
 ```bash
 PRISM_CORE_LIB=~/prism/prism-core/build/shared/core/libprism_core.dylib \
 flutter run -d macos --dart-define=PRISM_API_BASE_URL=<the API URL>
 ```
 
-**Do not ask for, and do not accept, a copy of the backend's `.env` file.** It
-holds live database and Supabase credentials, which have no business leaving the
-machine they were issued for. Mock mode exists precisely so you do not need them.
+**All you need is a URL and a login.** Both are safe to send. Ask for:
+
+1. **The API base URL**, ending in `/v1` — e.g. `https://something.example.com/v1`
+2. **An app account** — an email and password for the dashboard, ideally one
+   created for you rather than someone else's
+
+**You do not need the backend's `.env` file, and should not accept one.** It
+holds `DATABASE_URL`, `SUPABASE_JWT_SECRET` and `SUPABASE_SERVICE_ROLE_KEY` —
+between them, full read/write/delete on the database and the ability to
+impersonate any user. The app never sees any of that; it only ever talks to the
+API over HTTP with a normal login. If someone offers it, they have misunderstood
+what you need.
+
+> **If no URL exists yet** — the backend currently binds to `127.0.0.1` and runs
+> on one machine, so there is nothing to point at until someone either exposes it
+> (a Cloudflare or ngrok tunnel takes a few minutes and needs no deployment) or
+> deploys it (Railway, Render, Fly — secrets live in the host's environment
+> variables, still nothing to send). Either produces exactly the URL above.
+
+> **On macOS/iOS this is all you need.** CORS does not apply to native apps. If
+> you also want the app in a browser against the real API, the backend's
+> `PRISM_CORS_ORIGINS` has to include your origin — mention it and it can be added.
 
 > **Expect a short silence when the mood changes.** That is a known limitation,
 > not a bug — see "Known limitations" below.
