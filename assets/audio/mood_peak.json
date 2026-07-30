@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0.0",
+  "default_scene": "peak",
+  "scenes": [
+    {
+      "id": "peak",
+      "key": "peak - A-minor keys, deep Em bass, kick-forward drums1, busy lead, bright air, driving",
+      "stems": [
+        {
+          "role": "bed",
+          "file": "stems/piano_12_sr.flac"
+        },
+        {
+          "role": "sub",
+          "file": "stems/bass_12_sr.flac"
+        },
+        {
+          "role": "pulse",
+          "file": "stems/drums1_sr.flac"
+        },
+        {
+          "role": "lead",
+          "file": "stems/other1_sr.flac"
+        },
+        {
+          "role": "air",
+          "file": "stems/guitar13_sr.flac"
+        }
+      ]
+    }
+  ]
+}

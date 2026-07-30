@@ -41,6 +41,17 @@ dependencies:
   http: ^1.6.0
   flutter_secure_storage: ^10.3.1
 
+  # The sound engine. A path dependency because prism-core is a separate repo
+  # that is versioned by its C ABI, not published to pub.dev — see
+  # SOUND_ENGINE.md for the clone layout this expects.
+  prism_core_bindings:
+    path: ../prism-core/bindings/dart/prism_core_bindings
+
+  # The engine loads scenes from a filesystem PATH; Flutter assets are not files
+  # on device, so bundled stems are copied here first. Native only — the web
+  # build never reaches this code (see lib/engine/prism_engine_stub.dart).
+  path_provider: ^2.1.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -66,6 +77,11 @@ flutter:
 
   assets:
     - assets/img/
+    # Six mood scenes, ~13.7 MB as FLAC (lossless — verified bit-identical to
+    # the WAV originals through the engine). Bundled rather than downloaded so a
+    # venue keeps working with no network.
+    - assets/audio/
+    - assets/audio/stems/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

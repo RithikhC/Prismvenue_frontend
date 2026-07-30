@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0.0",
+  "default_scene": "daytime_flow",
+  "scenes": [
+    {
+      "id": "daytime_flow",
+      "key": "daytime flow - clean G-major guitar bed + G bass + soft light kit, guitar-led, steady",
+      "stems": [
+        {
+          "role": "bed",
+          "file": "stems/guitar10_sr.flac"
+        },
+        {
+          "role": "sub",
+          "file": "stems/bass10_sr.flac"
+        },
+        {
+          "role": "pulse",
+          "file": "stems/drums_sr.flac"
+        }
+      ]
+    }
+  ]
+}

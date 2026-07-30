@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0.0",
+  "default_scene": "evening_warmth",
+  "scenes": [
+    {
+      "id": "evening_warmth",
+      "key": "evening warmth - warm G-minor pad, deep bass, brushed groove, guitar, violin, full 5 layers",
+      "stems": [
+        {
+          "role": "bed",
+          "file": "stems/other9_sr.flac"
+        },
+        {
+          "role": "sub",
+          "file": "stems/bass9_sr.flac"
+        },
+        {
+          "role": "pulse",
+          "file": "stems/drums9_sr.flac"
+        },
+        {
+          "role": "lead",
+          "file": "stems/guitar9_sr.flac"
+        },
+        {
+          "role": "air",
+          "file": "stems/violin_removed.flac"
+        }
+      ]
+    }
+  ]
+}

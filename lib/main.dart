@@ -16,6 +16,7 @@ import 'data/repositories/playback_repo.dart';
 import 'data/repositories/schedule_repo.dart';
 import 'data/repositories/settings_repo.dart';
 import 'data/repositories/venue_repo.dart';
+import 'engine/engine_controller.dart';
 import 'theme/palette.dart';
 
 /// App theme mode. Dark is the design default (§1.1).
@@ -116,6 +117,14 @@ class PrismVenuesApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Reading this once, above the router, is what connects app state to the
+    // speakers. The controller then follows now-playing and takeover for the
+    // life of the app; nothing else needs to know the engine exists.
+    //
+    // On web this resolves to a no-op engine — Flutter web has no dart:ffi, so
+    // a native library cannot be loaded there at all.
+    ref.watch(engineControllerProvider);
+
     final themeMode = ref.watch(themeModeProvider);
     return MaterialApp.router(
       title: 'Prism Venues',

@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0.0",
+  "default_scene": "wind_down",
+  "scenes": [
+    {
+      "id": "wind_down",
+      "key": "wind down - D-minor pad, near-silent bass, sparse felt piano air, no percussion, settling",
+      "stems": [
+        {
+          "role": "bed",
+          "file": "stems/other7_sr.flac"
+        },
+        {
+          "role": "sub",
+          "file": "stems/bass4_sr.flac"
+        },
+        {
+          "role": "air",
+          "file": "stems/piano7_sr.flac"
+        }
+      ]
+    }
+  ]
+}

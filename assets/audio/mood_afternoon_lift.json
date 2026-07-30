@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0.0",
+  "default_scene": "afternoon_lift",
+  "scenes": [
+    {
+      "id": "afternoon_lift",
+      "key": "afternoon lift - bright C-major piano/keys, tight bright kit, shimmer air, piano-led",
+      "stems": [
+        {
+          "role": "bed",
+          "file": "stems/piano1_sr.flac"
+        },
+        {
+          "role": "sub",
+          "file": "stems/bass1_sr.flac"
+        },
+        {
+          "role": "pulse",
+          "file": "stems/drums13_sr.flac"
+        },
+        {
+          "role": "air",
+          "file": "stems/other13_sr.flac"
+        }
+      ]
+    }
+  ]
+}

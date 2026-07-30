@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0.0",
+  "default_scene": "morning_calm",
+  "scenes": [
+    {
+      "id": "morning_calm",
+      "key": "morning calm - warm D-flat major pad, soft bass, felt piano air, no percussion, darkest",
+      "stems": [
+        {
+          "role": "bed",
+          "file": "stems/other_sr.flac"
+        },
+        {
+          "role": "sub",
+          "file": "stems/bass_sr.flac"
+        },
+        {
+          "role": "air",
+          "file": "stems/piano_sr.flac"
+        }
+      ]
+    }
+  ]
+}
