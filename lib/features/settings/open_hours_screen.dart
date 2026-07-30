@@ -76,7 +76,11 @@ class OpenHoursScreen extends ConsumerWidget {
                             ? 'Closed'
                             : '${OpenHours.hourLabel(exception.openHour)}–'
                                 '${OpenHours.hourLabel(exception.closeHour)}',
-                        chevron: false,
+                        // Tap to edit or delete. The chevron is what signals
+                        // it is tappable at all — without it these rows read
+                        // as permanent, which is exactly how they behaved.
+                        onTap: () => showExceptionSheet(context, ref,
+                            existing: exception),
                       ),
                       const SizedBox(height: 8),
                     ],

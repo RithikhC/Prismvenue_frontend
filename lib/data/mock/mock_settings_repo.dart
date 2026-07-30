@@ -11,9 +11,10 @@ class MockSettingsRepo implements SettingsRepo {
   var _guardrails = const Guardrails();
   var _hours = const OpenHours(
     exceptions: [
-      HoursException(days: {4, 5}, openHour: 7, closeHour: 1),
+      HoursException(id: 'e-seed', days: {4, 5}, openHour: 7, closeHour: 1),
     ],
   );
+  var _nextExceptionId = 0;
 
   final _guardrailsController = StreamController<Guardrails>.broadcast();
   final _hoursController = StreamController<OpenHours>.broadcast();
@@ -49,8 +50,31 @@ class MockSettingsRepo implements SettingsRepo {
 
   @override
   Future<void> addException(HoursException exception) async {
-    _emitHours(
-        _hours.copyWith(exceptions: [..._hours.exceptions, exception]));
+    // The server assigns the real id; the mock stands in for that so edit and
+    // delete have something to address.
+    final saved = HoursException(
+      id: 'e-${_nextExceptionId++}',
+      days: exception.days,
+      openHour: exception.openHour,
+      closeHour: exception.closeHour,
+      closedAllDay: exception.closedAllDay,
+      everyWeek: exception.everyWeek,
+    );
+    _emitHours(_hours.copyWith(exceptions: [..._hours.exceptions, saved]));
+  }
+
+  @override
+  Future<void> updateException(HoursException exception) async {
+    _emitHours(_hours.copyWith(exceptions: [
+      for (final e in _hours.exceptions)
+        if (e.id == exception.id) exception else e,
+    ]));
+  }
+
+  @override
+  Future<void> deleteException(String id) async {
+    _emitHours(_hours.copyWith(
+        exceptions: _hours.exceptions.where((e) => e.id != id).toList()));
   }
 
   void dispose() {

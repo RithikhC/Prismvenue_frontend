@@ -12,6 +12,12 @@ abstract class SettingsRepo {
   Stream<OpenHours> watchOpenHours();
   Future<void> setEverydayHours({required int openHour, required int closeHour});
   Future<void> addException(HoursException exception);
+
+  /// S05-10 in edit mode. Sends the whole exception — the model has no
+  /// partial form — so [HoursException.id] must be set.
+  Future<void> updateException(HoursException exception);
+
+  Future<void> deleteException(String id);
 }
 
 final settingsRepoProvider = Provider<SettingsRepo>((ref) {

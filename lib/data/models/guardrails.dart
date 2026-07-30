@@ -79,12 +79,19 @@ class Guardrails {
 /// S05-6/10/11 open hours: one default, only the exceptions stand out.
 class HoursException {
   const HoursException({
+    this.id,
     required this.days,
     required this.openHour,
     required this.closeHour,
     this.closedAllDay = false,
     this.everyWeek = true,
   });
+
+  /// Server-assigned; null for one the sheet has just built and not yet saved.
+  /// Without this there was no way to address a single exception, which is why
+  /// they could only ever be added — never edited or removed
+  /// (`open_questions.md` #26).
+  final String? id;
 
   /// 0 = Mon … 6 = Sun.
   final Set<int> days;

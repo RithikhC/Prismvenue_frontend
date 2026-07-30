@@ -187,6 +187,43 @@ void main() {
       expect(hours.exceptions.single.daysLabel, 'Fri & Sat');
     });
 
+    test('exceptions carry their id, so they can be addressed', () async {
+      // Without an id an exception could only ever be added — there was
+      // nothing to name in an edit or delete.
+      final hours = await buildRepo().watchOpenHours().first;
+
+      expect(hours.exceptions.single.id, 'e-1');
+    });
+
+    test('updateException patches by id and refreshes', () async {
+      final repo = buildRepo();
+
+      await repo.updateException(const HoursException(
+        id: 'e-1',
+        days: {3, 4, 5},
+        openHour: 7,
+        closeHour: 17,
+      ));
+
+      final patch = sent.firstWhere((r) => r.method == 'PATCH');
+      expect(patch.url.path, endsWith('/open-hours/exceptions/e-1'));
+      final body = jsonDecode(patch.body) as Map<String, dynamic>;
+      expect(body['days'], [3, 4, 5]);
+      expect(body['close_hour'], 17);
+      // Refreshed, or the edited row would not change on screen.
+      expect(sent.where((r) => r.method == 'GET'), isNotEmpty);
+    });
+
+    test('deleteException deletes by id and refreshes', () async {
+      final repo = buildRepo();
+
+      await repo.deleteException('e-1');
+
+      final del = sent.firstWhere((r) => r.method == 'DELETE');
+      expect(del.url.path, endsWith('/open-hours/exceptions/e-1'));
+      expect(sent.where((r) => r.method == 'GET'), isNotEmpty);
+    });
+
     test('addException posts the day set and refreshes', () async {
       final repo = buildRepo();
       await repo.addException(

@@ -163,18 +163,36 @@ class ApiSettingsRepo implements SettingsRepo {
   Future<void> addException(HoursException exception) async {
     await _client.post(
       '/venues/${_scope.requireVenue()}/open-hours/exceptions',
-      body: {
-        'days': exception.days.toList()..sort(),
-        'open_hour': exception.openHour,
-        'close_hour': exception.closeHour,
-        'closed_all_day': exception.closedAllDay,
-        'every_week': exception.everyWeek,
-        // The sheet collects no label; the server accepts null.
-        'label': null,
-      },
+      body: _exceptionToJson(exception),
     );
     await _openHours.refresh();
   }
+
+  @override
+  Future<void> updateException(HoursException exception) async {
+    await _client.patch(
+      '/open-hours/exceptions/${exception.id}',
+      body: _exceptionToJson(exception),
+    );
+    await _openHours.refresh();
+  }
+
+  @override
+  Future<void> deleteException(String id) async {
+    await _client.delete('/open-hours/exceptions/$id');
+    await _openHours.refresh();
+  }
+
+  static Map<String, dynamic> _exceptionToJson(HoursException e) => {
+        'days': e.days.toList()..sort(),
+        'open_hour': e.openHour,
+        'close_hour': e.closeHour,
+        'closed_all_day': e.closedAllDay,
+        'every_week': e.everyWeek,
+        // The sheet collects no label. Null means "leave it alone" on update —
+        // the server coalesces rather than clearing it.
+        'label': null,
+      };
 
   Future<OpenHours> _fetchOpenHours() async {
     final json = await _client.get('/venues/${_scope.requireVenue()}/open-hours')
@@ -189,12 +207,12 @@ class ApiSettingsRepo implements SettingsRepo {
     );
   }
 
-  /// The server's `id` and `label` are dropped: `HoursException` carries
-  /// neither, and no screen edits or deletes an exception (only "+ Add"
-  /// exists — `open_questions.md` #26). They are round-tripped by the server,
-  /// not lost, so adding the fields later needs no migration.
+  /// `label` is still dropped — nothing displays or edits it — but it is
+  /// round-tripped by the server, not lost. `id` is kept now: editing and
+  /// deleting an exception need something to address.
   static HoursException _exceptionFromJson(Map<String, dynamic> json) {
     return HoursException(
+      id: json['id'] as String?,
       days: {for (final d in (json['days'] as List? ?? const [])) d as int},
       openHour: json['open_hour'] as int? ?? 0,
       closeHour: json['close_hour'] as int? ?? 0,
