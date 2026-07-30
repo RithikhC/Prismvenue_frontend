@@ -32,17 +32,64 @@ void main() {
     await _settle(tester);
   }
 
+  testWidgets('S00-1: the password hint matches the email hint style',
+      (tester) async {
+    // The obscured field's 18/ls3 treatment is for the typed dots only. When
+    // the hint inherited it, "Password" rendered visibly different from
+    // "Email" on the sign-in screen.
+    await tester.binding.setSurfaceSize(const Size(1024, 768));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const ProviderScope(child: PrismVenuesApp()));
+    await _settle(tester);
+
+    final fields = tester
+        .widgetList<TextField>(find.byType(TextField))
+        .where((f) => f.decoration?.hintText != null)
+        .toList();
+    final email =
+        fields.singleWhere((f) => f.decoration!.hintText == 'Email');
+    final password =
+        fields.singleWhere((f) => f.decoration!.hintText == 'Password');
+
+    expect(password.decoration!.hintStyle!.fontSize,
+        email.decoration!.hintStyle!.fontSize);
+    expect(password.decoration!.hintStyle!.letterSpacing,
+        email.decoration!.hintStyle!.letterSpacing);
+    // The dots themselves keep the wide treatment.
+    expect(password.style!.letterSpacing, 3);
+  });
+
   testWidgets('portrait floor: rail renders as a strip below the grid',
       (tester) async {
     await pumpApp(tester,
         size: const Size(768, 1024), email: 'priya@marinacafe.com');
 
     // Same content as landscape — hero, grid, and the rail (as a strip);
-    // an overflow would fail the test via FlutterError.
+    // an overflow would fail the test via FlutterError. The mock starts
+    // self-driving, so the strip carries that state rather than dayparts —
+    // it still has to reflow without overflowing.
     expect(find.text('NOW PLAYING'), findsOneWidget);
+    expect(find.text('RIGHT NOW'), findsOneWidget);
+    expect(find.text('Prism is picking the vibe'), findsOneWidget);
+    expect(find.text('Take over'), findsOneWidget);
+  });
+
+  testWidgets('portrait floor: daypart strip reflows on a custom plan',
+      (tester) async {
+    await pumpApp(tester,
+        size: const Size(768, 1024), email: 'priya@marinacafe.com');
+
+    await tester.tap(find.text('Schedule'));
+    await _settle(tester);
+    await tester.tap(find.text('Custom plan'));
+    await _settle(tester);
+    await tester.tap(find.text('Floor'));
+    await _settle(tester);
+
+    // The horizontally-scrolling daypart strip is the wider layout — this is
+    // the case that would overflow if the chips did not scroll.
     expect(find.text("TODAY'S SCHEDULE"), findsOneWidget);
     expect(find.text('NOW'), findsOneWidget);
-    expect(find.text('Take over'), findsOneWidget);
   });
 
   testWidgets('portrait: takeover, schedule, venues, settings all reflow',

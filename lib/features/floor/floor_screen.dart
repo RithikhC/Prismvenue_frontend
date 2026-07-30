@@ -103,6 +103,7 @@ class FloorScreen extends ConsumerWidget {
                           data: (today) => ScheduleRail(
                             entries: today.entries,
                             nowIndex: today.nowIndex,
+                            selfDrive: today.selfDrive,
                             horizontal: true,
                           ),
                         ),
@@ -124,7 +125,10 @@ class FloorScreen extends ConsumerWidget {
                       loading: () => const SizedBox(width: 268),
                       error: (e, st) => const SizedBox(width: 268),
                       data: (today) => ScheduleRail(
-                          entries: today.entries, nowIndex: today.nowIndex),
+                            entries: today.entries,
+                            nowIndex: today.nowIndex,
+                            selfDrive: today.selfDrive,
+                          ),
                     ),
                   ],
                 );

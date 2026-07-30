@@ -85,6 +85,7 @@ class TodaySchedule {
     required this.entries,
     required this.nowIndex,
     required this.auto,
+    this.selfDrive = false,
   });
 
   final List<ScheduleEntry> entries;
@@ -92,4 +93,10 @@ class TodaySchedule {
 
   /// Rail header chip ("Auto") — Prism driving on schedule.
   final bool auto;
+
+  /// True when Prism picks the vibe itself (S03-1) and the saved plan is not
+  /// running. [entries] then describes a plan that is not in charge, so the
+  /// rail shows the self-drive state instead of a highlighted "NOW" row that
+  /// nothing is following.
+  final bool selfDrive;
 }

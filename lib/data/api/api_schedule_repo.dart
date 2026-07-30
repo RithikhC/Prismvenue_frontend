@@ -92,6 +92,9 @@ class ApiScheduleRepo implements ScheduleRepo {
       ],
       nowIndex: json['now_index'] as int? ?? 0,
       auto: json['auto'] as bool? ?? true,
+      // Absent from an older server: assume a plan IS running, so the rail
+      // keeps its documented behaviour rather than hiding the schedule.
+      selfDrive: json['self_drive'] as bool? ?? false,
     );
   }
 

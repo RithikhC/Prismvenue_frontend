@@ -8,17 +8,22 @@ import '../repositories/schedule_repo.dart';
 /// default open hours (7am–11pm). Exact times are seed data
 /// (open_questions).
 class MockScheduleRepo implements ScheduleRepo {
-  static const _today = TodaySchedule(
-    auto: true,
-    nowIndex: 2,
-    entries: [
-      ScheduleEntry(timeLabel: '7:00 am', moodId: 'morning-calm'),
-      ScheduleEntry(timeLabel: '11:00 am', moodId: 'daytime-flow'),
-      ScheduleEntry(timeLabel: '2:00 pm', moodId: 'afternoon-lift'),
-      ScheduleEntry(timeLabel: '6:00 pm', moodId: 'evening-warmth'),
-      ScheduleEntry(timeLabel: '9:00 pm', moodId: 'peak'),
-    ],
-  );
+  /// Rebuilt per read so switching mode moves the Floor rail too — the plan
+  /// only "runs" on a custom plan.
+  TodaySchedule get _today => TodaySchedule(
+        auto: true,
+        nowIndex: 2,
+        selfDrive: _mode == ScheduleMode.selfDrive,
+        entries: _todayEntries,
+      );
+
+  static const _todayEntries = [
+    ScheduleEntry(timeLabel: '7:00 am', moodId: 'morning-calm'),
+    ScheduleEntry(timeLabel: '11:00 am', moodId: 'daytime-flow'),
+    ScheduleEntry(timeLabel: '2:00 pm', moodId: 'afternoon-lift'),
+    ScheduleEntry(timeLabel: '6:00 pm', moodId: 'evening-warmth'),
+    ScheduleEntry(timeLabel: '9:00 pm', moodId: 'peak'),
+  ];
 
   /// (startHour, endHour, moodId) — the same blocks as before, now as real
   /// hours. Their derived labels are identical to the strings this used to
@@ -65,6 +70,9 @@ class MockScheduleRepo implements ScheduleRepo {
   Future<void> setMode(ScheduleMode mode) async {
     _mode = mode;
     _modeController.add(mode);
+    // The Floor rail shows whether the plan is running, so it has to hear
+    // about the switch too.
+    _todayController.add(_today);
   }
 
   @override

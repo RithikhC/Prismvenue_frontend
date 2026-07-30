@@ -11,7 +11,10 @@ import 'package:prism_venues/shared/widgets/mood_tile.dart';
 /// confirm-before-switch (S01-3), pause/resume (S01-2 ⇄ S01-1), account
 /// menu sign-out (§2.0).
 void main() {
-  Future<void> pumpFloor(WidgetTester tester) async {
+  /// [email] decides the role — floor staff are gated out of /schedule, so a
+  /// test that needs the mode switch has to sign in as a manager.
+  Future<void> pumpFloor(WidgetTester tester,
+      {String email = 'floor@marinacafe.com'}) async {
     await tester.binding.setSurfaceSize(const Size(1024, 768));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final container = ProviderContainer(overrides: [
@@ -29,7 +32,7 @@ void main() {
       ),
     );
     await _settle(tester);
-    await tester.enterText(find.byType(TextField).first, 'floor@marinacafe.com');
+    await tester.enterText(find.byType(TextField).first, email);
     await tester.tap(find.text('Sign in'));
     await _settle(tester);
   }
@@ -38,8 +41,10 @@ void main() {
     await pumpFloor(tester);
 
     expect(find.text('NOW PLAYING'), findsOneWidget);
-    // Hero mood name + playing tile name + schedule-rail current row.
-    expect(find.text('Afternoon lift'), findsNWidgets(3));
+    // Hero mood name + playing tile name. The rail no longer lists dayparts:
+    // the mock starts self-driving (S03-1 is the entry frame), so no saved
+    // plan is running to show.
+    expect(find.text('Afternoon lift'), findsNWidgets(2));
     expect(find.text('Prism is driving'), findsOneWidget);
     expect(find.text('mid-afternoon · ~60% full · clear'), findsOneWidget);
     expect(find.text('Noise'), findsOneWidget);
@@ -50,18 +55,44 @@ void main() {
     expect(find.text('Moods'), findsOneWidget);
     expect(find.text('Tap to change the vibe · one tap'), findsOneWidget);
 
-    // Schedule rail: header, Auto chip, NOW badge, up-next tag.
+    // Rail in its self-drive state: no daypart rows, no NOW badge claiming a
+    // schedule is running, and it names Schedule as where to change that.
+    expect(find.text('RIGHT NOW'), findsOneWidget);
+    expect(find.text('Self-drive'), findsOneWidget);
+    expect(find.text('Prism is picking the vibe'), findsOneWidget);
+    expect(find.text('NOW'), findsNothing);
+    expect(find.text('up next'), findsNothing);
+    expect(find.textContaining('Switch to Custom plan'), findsOneWidget);
+  });
+
+  testWidgets('rail shows the plan once a custom plan is running',
+      (tester) async {
+    // Manager: floor staff cannot reach /schedule to switch the mode.
+    await pumpFloor(tester, email: 'priya@marinacafe.com');
+
+    // Self-drive by default: the plan is hidden.
+    expect(find.text('RIGHT NOW'), findsOneWidget);
+
+    // Switching to a custom plan in Schedule must move the Floor rail too.
+    await tester.tap(find.text('Schedule'));
+    await _settle(tester);
+    await tester.tap(find.text('Custom plan'));
+    await _settle(tester);
+    await tester.tap(find.text('Floor'));
+    await _settle(tester);
+
     expect(find.text("TODAY'S SCHEDULE"), findsOneWidget);
     expect(find.text('Auto'), findsOneWidget);
     expect(find.text('NOW'), findsOneWidget);
     expect(find.text('up next'), findsOneWidget);
+    expect(find.text('Prism is picking the vibe'), findsNothing);
   });
 
   testWidgets('S01-3 confirm gate: cancel keeps mood, confirm switches',
       (tester) async {
     await pumpFloor(tester);
 
-    // The rail shows mood names too — scope tile taps to the MoodTile.
+    // Scoped to the MoodTile: the hero shows mood names too.
     final eveningTile = find.descendant(
         of: find.byType(MoodTile), matching: find.text('Evening warmth'));
 
@@ -75,16 +106,17 @@ void main() {
     // Cancel → no change (dismiss to parent, no state change §4).
     await tester.tap(find.text('Cancel'));
     await _settle(tester);
-    expect(find.text('Afternoon lift'), findsNWidgets(3));
+    expect(find.text('Afternoon lift'), findsNWidgets(2));
 
     // Confirm → the room switches.
     await tester.tap(eveningTile);
     await _settle(tester);
     await tester.tap(find.text('Switch the vibe'));
     await _settle(tester);
-    // Hero + playing tile switch; the rail keeps showing the schedule.
-    expect(find.text('Evening warmth'), findsNWidgets(3)); // hero+tile+rail
-    expect(find.text('Afternoon lift'), findsNWidgets(2)); // idle tile+rail
+    // Hero + playing tile switch. Counts are hero+tile / idle tile only —
+    // the self-driving rail lists no dayparts to also match.
+    expect(find.text('Evening warmth'), findsNWidgets(2));
+    expect(find.text('Afternoon lift'), findsOneWidget);
     expect(find.text('Prism is driving'), findsOneWidget);
   });
 

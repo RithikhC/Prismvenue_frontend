@@ -18,11 +18,18 @@ class ScheduleRail extends StatelessWidget {
     super.key,
     required this.entries,
     required this.nowIndex,
+    this.selfDrive = false,
     this.horizontal = false,
   });
 
   final List<ScheduleEntry> entries;
   final int nowIndex;
+
+  /// S03-1: Prism is picking the vibe itself, so the saved plan is not
+  /// running. Listing dayparts with a highlighted "NOW" row would claim a
+  /// schedule is in charge when nothing is following it — the rail shows the
+  /// self-drive state instead.
+  final bool selfDrive;
 
   /// §6-A1 portrait: the rail "moves below the mood grid as a horizontal
   /// strip" — same header + rows rendered as a scrollable strip (derived;
@@ -48,24 +55,27 @@ class ScheduleRail extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text("TODAY'S SCHEDULE",
+                Text(_header,
                     style: PrismType.labelCaps
                         .copyWith(color: palette.textSecondary)),
-                const StatusPill(text: 'Auto'),
+                StatusPill(text: selfDrive ? 'Self-drive' : 'Auto'),
               ],
             ),
             const SizedBox(height: 10),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (var i = 0; i < entries.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 8),
-                    _stripEntry(palette, b, i),
+            if (selfDrive)
+              _selfDriveNote(palette)
+            else
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (var i = 0; i < entries.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 8),
+                      _stripEntry(palette, b, i),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
           ],
         ),
       );
@@ -165,20 +175,64 @@ class ScheduleRail extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text("TODAY'S SCHEDULE",
+                Text(_header,
                     style:
                         PrismType.labelCaps.copyWith(color: palette.textSecondary)),
-                const StatusPill(text: 'Auto'),
+                StatusPill(text: selfDrive ? 'Self-drive' : 'Auto'),
               ],
             ),
           ),
           const SizedBox(height: 14),
-          for (var i = 0; i < entries.length; i++) ...[
-            if (i > 0) const SizedBox(height: 16),
-            row(i),
-          ],
+          if (selfDrive)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3),
+              child: _selfDriveNote(palette),
+            )
+          else
+            for (var i = 0; i < entries.length; i++) ...[
+              if (i > 0) const SizedBox(height: 16),
+              row(i),
+            ],
         ],
       ),
+    );
+  }
+
+  /// "TODAY'S SCHEDULE" describes a plan that is running; on self-drive there
+  /// is no plan to describe.
+  String get _header => selfDrive ? 'RIGHT NOW' : "TODAY'S SCHEDULE";
+
+  /// The rail's self-drive state. Mirrors the S03-1 empty state's language so
+  /// the two screens agree, and names Schedule as the place to change it —
+  /// otherwise a manager wondering where their dayparts went has nowhere to
+  /// look.
+  Widget _selfDriveNote(PrismPalette palette) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Prism is picking the vibe',
+            style: PrismType.bodySm.copyWith(color: palette.textPrimary)),
+        const SizedBox(height: 6),
+        Text(
+          'It reads the room — time of day, how busy it is, how loud — and '
+          'changes the mood as the day moves.',
+          style: PrismType.meta.copyWith(
+              fontWeight: FontWeight.w400,
+              height: 1.45,
+              color: palette.textSecondary),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          entries.isEmpty
+              ? 'Build a custom plan in Schedule to pin moods to times.'
+              : 'Your saved plan is paused. Switch to Custom plan in Schedule '
+                  'to run it.',
+          style: PrismType.micro.copyWith(
+              fontWeight: FontWeight.w600,
+              height: 1.45,
+              color: palette.textTertiary),
+        ),
+      ],
     );
   }
 

@@ -67,11 +67,16 @@ class _PrismFieldState extends State<PrismField> {
     final palette = Theme.of(context).extension<PrismPalette>()!;
     final focused = widget.focusedOverride ?? _focusNode.hasFocus;
 
+    // The spec's "18/ls3" password treatment is for the typed DOTS only.
+    // The hint must keep the standard field style — inheriting the dot style
+    // made the "Password" placeholder render 18px wide-tracked next to
+    // Email's 14.5, reading as a different font.
+    final plainStyle = PrismType.body.copyWith(
+        fontSize: widget.auth ? 14.5 : 13, color: palette.textPrimary);
     final textStyle = widget.obscure
         ? PrismType.body.copyWith(
             fontSize: 18, letterSpacing: 3, color: palette.textPrimary)
-        : PrismType.body.copyWith(
-            fontSize: widget.auth ? 14.5 : 13, color: palette.textPrimary);
+        : plainStyle;
 
     final border = focused
         ? Border.all(color: palette.accent, width: 1.5)
@@ -112,7 +117,7 @@ class _PrismFieldState extends State<PrismField> {
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.zero,
                 hintText: widget.hint,
-                hintStyle: textStyle.copyWith(color: palette.textTertiary),
+                hintStyle: plainStyle.copyWith(color: palette.textTertiary),
               ),
             ),
           ),
