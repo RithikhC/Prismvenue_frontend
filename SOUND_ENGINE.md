@@ -50,7 +50,7 @@ relative position matter.
 ```bash
 mkdir -p ~/prism && cd ~/prism
 git clone https://github.com/aaqibnp971/prism-core.git
-git clone <the prism-venues-frontend repo URL> Prismvenue_frontend
+git clone https://github.com/aaqibnp971/prismvenue-frontend.git Prismvenue_frontend
 ```
 
 Result:
@@ -67,6 +67,11 @@ The engine work lives on a branch, not `main`:
 cd ~/prism/prism-core
 git checkout venues/win32-build
 ```
+
+> The branch name is misleading — it started as Windows portability fixes and
+> grew to hold the whole venues engine change, including the mood API the app
+> depends on. Nothing on it is Windows-specific. **`main` will not work**; it
+> has no `prism_set_mood_override`.
 
 > **Note the remotes.** `origin` points at `RidhwanAhamed/prism-core`, the
 > upstream project. `aaqib` is the fork this work belongs in. **Never push to
@@ -155,20 +160,47 @@ cd ~/prism/Prismvenue_frontend
 flutter pub get
 ```
 
-The app needs a backend. Ask for a `.env` / API URL, or run the backend locally
-(see `RUNNING.md`). Substitute the URL below.
+**Run it in mock mode.** The app normally talks to a FastAPI backend, but you do
+not need one: `PRISM_USE_MOCKS=true` swaps in in-memory data. There is no server
+to run, no credentials to obtain, and nothing to configure.
+
+This works for testing audio because the engine follows the app's own
+now-playing stream rather than being wired to the mood button — and the mock
+feeds that same stream. Mood taps, pause and takeover all reach the engine
+exactly as they would against the real backend.
 
 The bindings honour a `PRISM_CORE_LIB` environment variable, which saves
 embedding the library just to try it:
 
 ```bash
 PRISM_CORE_LIB=~/prism/prism-core/build/shared/core/libprism_core.dylib \
-flutter run -d macos --dart-define=PRISM_API_BASE_URL=http://localhost:8000/v1
+flutter run -d macos --dart-define=PRISM_USE_MOCKS=true
 ```
 
-**Verify:** sign in, go to the Floor screen, tap a mood. **You should hear the
-room change.** Tap "Start takeover" — the audio should stop, so staff could use
-their own source. End the takeover and it should come back.
+**Verify:**
+
+1. At the sign-in screen, enter **any** email and **any** password — mock auth
+   accepts anything. Use something with "manager" in it, e.g.
+   `manager@test.com`. (An address containing "floor" or "owner" gives you a
+   different role with different navigation.)
+2. You land on the Floor screen. **Tap a mood — you should hear the room change.**
+3. Tap **Start takeover** — the audio should stop, so staff could use their own
+   source. End the takeover and it should come back.
+
+> **Expect a short silence when the mood changes.** Known limitation, see below.
+
+### Against the real backend (optional)
+
+Only if you have been given an API URL. Nothing about the audio path changes:
+
+```bash
+PRISM_CORE_LIB=~/prism/prism-core/build/shared/core/libprism_core.dylib \
+flutter run -d macos --dart-define=PRISM_API_BASE_URL=<the API URL>
+```
+
+**Do not ask for, and do not accept, a copy of the backend's `.env` file.** It
+holds live database and Supabase credentials, which have no business leaving the
+machine they were issued for. Mock mode exists precisely so you do not need them.
 
 > **Expect a short silence when the mood changes.** That is a known limitation,
 > not a bug — see "Known limitations" below.
@@ -178,6 +210,13 @@ their own source. End the takeover and it should come back.
 ## Part 4 — The iPad
 
 Only attempt this once Part 3 works.
+
+> **Honesty about this part:** everything up to here has been run and verified.
+> Part 4 has **not** — no Mac was available, and iOS cannot be cross-built from
+> Windows. The steps follow Apple's and CMake's documented behaviour and the
+> repo's existing iOS framework config, but treat them as a starting point
+> rather than a tested recipe. If the CMake invocation needs adjusting, that is
+> expected; the app-side code is the part that has been checked.
 
 ### 4a. Build the engine as an iOS framework
 
@@ -307,7 +346,9 @@ was never recorded; it needs different source material.
 | `flutter pub get` fails on `prism_core_bindings` | The two repos are not side by side. See Part 1. |
 | Harness silent | Turn the volume up; it renders with deliberate headroom. |
 | `ctest` fails on `PgaeRtSafety` only | Expected. See Part 2a. |
-| App works, no data | Backend problem, not audio. See `RUNNING.md`. |
+| App works, no data | Use `--dart-define=PRISM_USE_MOCKS=true`. See Part 3. |
+| Cannot get past sign-in | In mock mode any email/password works. Try `manager@test.com`. |
+| `prism_set_mood_override` not found | You are on `main`. Check out `venues/win32-build`. See Part 1. |
 
 ## Questions worth asking back
 
